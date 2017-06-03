@@ -18,7 +18,7 @@ type SeqStep struct {
 //NewSeqStep creates a new sequential step
 //Note that the new SeqStep should be of state StepStateNone, and all of its substeps should be of state StepStateNone too.
 func NewSeqStep(stepInfo StepInfo, steps ...Step) *SeqStep {
-	//the call is responsible to make sure stepOpts and all step's state are set to StateNone
+	//the caller is responsible to make sure stepOpts and all step's state are set to StateNone
 	return &SeqStep{GenericStep{StepInfo: stepInfo, Steps: steps}}
 }
 
