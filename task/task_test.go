@@ -42,7 +42,7 @@ func (s *dummyStep) Run(reqCtx context.Context) (context.Context, *joint.Error) 
 }
 
 func newDummyStep() *dummyStep {
-	return &dummyStep{*NewGenericStep(StepOpts{Name: "dummy step", State: StateNone}, nil)}
+	return &dummyStep{*NewGenericStep(NewStepInfo("dummy step"), nil)}
 }
 
 func TestTaskRun(t *testing.T) {

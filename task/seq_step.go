@@ -17,13 +17,9 @@ type SeqStep struct {
 
 //NewSeqStep creates a new sequential step
 //Note that the new SeqStep should be of state StepStateNone, and all of its substeps should be of state StepStateNone too.
-func NewSeqStep(stepOpts StepOpts, steps ...Step) *SeqStep {
-	//set all step's state to StateNone
-	stepOpts.State = StateNone
-	for _, step := range steps {
-		step.SetState(StateNone)
-	}
-	return &SeqStep{GenericStep{StepOpts: stepOpts, Steps: steps}}
+func NewSeqStep(stepInfo StepInfo, steps ...Step) *SeqStep {
+	//the call is responsible to make sure stepOpts and all step's state are set to StateNone
+	return &SeqStep{GenericStep{StepInfo: stepInfo, Steps: steps}}
 }
 
 //Run runs all the steps sequentially. The substeps are responsible to update their states.

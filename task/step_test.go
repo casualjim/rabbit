@@ -23,9 +23,9 @@ type successStep struct {
 	GenericStep
 }
 
-func newSuccessStep(stepOpts StepOpts) *successStep {
+func newSuccessStep(stepInfo StepInfo) *successStep {
 	return &successStep{
-		GenericStep{stepOpts, nil},
+		GenericStep{StepInfo: stepInfo},
 	}
 }
 
@@ -41,9 +41,9 @@ type failedStep struct {
 	GenericStep
 }
 
-func newFailedStep(stepOpts StepOpts) *failedStep {
+func newFailedStep(stepInfo StepInfo) *failedStep {
 	return &failedStep{
-		GenericStep{stepOpts, nil},
+		GenericStep{StepInfo: stepInfo},
 	}
 }
 
@@ -57,28 +57,54 @@ func (s *failedStep) Run(reqCtx context.Context) (context.Context, *joint.Error)
 }
 
 func setupSeqStepFail() *SeqStep {
-	stepOpts := StepOpts{
-		Name:  "TestStep",
-		State: StateNone,
-	}
+	stepOpts := NewStepInfo("TestStep")
 
 	return NewSeqStep(
 		stepOpts,
-		newSuccessStep(StepOpts{Name: "Step1", State: StateNone}),
-		newFailedStep(StepOpts{Name: "Step2", State: StateNone}),
+		newSuccessStep(NewStepInfo("Step1")),
+		newFailedStep(NewStepInfo("Step2")),
 	)
 }
 
 func setupSeqStepSucceess() *SeqStep {
-	stepOpts := StepOpts{
-		Name:  "TestStep",
-		State: StateNone,
-	}
+	stepOpts := NewStepInfo("TestStep")
 
 	return NewSeqStep(
 		stepOpts,
-		newSuccessStep(StepOpts{Name: "Step1", State: StateNone}),
-		newSuccessStep(StepOpts{Name: "Step2", State: StateNone}),
+		newSuccessStep(NewStepInfo("Step1")),
+		newSuccessStep(NewStepInfo("Step2")),
+	)
+}
+
+//set up a step with a few substeps, the deepest active step is S112
+func setupSeqStep() *SeqStep {
+	return NewSeqStep(
+		StepInfo{Name: "S", State: StateProcessing},
+		NewSeqStep(
+			StepInfo{Name: "S1", State: StateProcessing},
+			NewSeqStep(
+				StepInfo{Name: "S11", State: StateProcessing},
+				NewSeqStep(StepInfo{Name: "S111", State: StateCompleted}),
+				NewSeqStep(StepInfo{Name: "S112", State: StateProcessing}),
+			),
+			NewSeqStep(
+				StepInfo{Name: "S12", State: StateNone},
+			),
+		),
+		NewSeqStep(
+			StepInfo{Name: "S2", State: StateNone},
+		),
+		NewSeqStep(
+			StepInfo{Name: "S3", State: StateNone},
+			NewSeqStep(
+				StepInfo{Name: "S31", State: StateNone},
+				NewSeqStep(StepInfo{Name: "S311", State: StateNone}),
+				NewSeqStep(StepInfo{Name: "S312", State: StateNone}),
+			),
+			NewSeqStep(
+				StepInfo{Name: "S32", State: StateNone},
+			),
+		),
 	)
 }
 
@@ -118,4 +144,18 @@ func TestSeqStepRunSuccess(t *testing.T) {
 	assert.Equal(t, runtimeresult.Log[0], "Step1 succeed")
 	assert.Equal(t, runtimeresult.Log[1], "Step2 succeed")
 	assert.Equal(t, seqStep.State, StateCompleted)
+}
+
+func TestGetActiveSteps(t *testing.T) {
+
+	seqStep := setupSeqStep()
+	activeSteps := GetActiveSteps(seqStep, true)
+	for _, step := range activeSteps {
+		assert.Equal(t, step.GetInfo().Name, "S112")
+	}
+
+	activeSteps = GetActiveSteps(seqStep, false)
+	for _, step := range activeSteps {
+		assert.Equal(t, step.GetInfo().Name, "S1")
+	}
 }

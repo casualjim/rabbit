@@ -22,13 +22,13 @@ type Step interface {
 	Run(context.Context) (context.Context, *joint.Error)
 	Rollback(context.Context) (context.Context, *joint.Error)
 	GetInfo() StepInfo
-	SetState(State)
+	GetSteps() []Step
 }
 
-//StepOpts includes the basic options of a step
-type StepOpts struct {
-	Name  string
-	State State
+//GenericStep is a generic Step
+type GenericStep struct {
+	StepInfo
+	Steps []Step
 
 	//The successFn signature takes the parent Step, the context and the child step
 	//so that if any information from child step is needed, it can be done in this function.
@@ -37,15 +37,13 @@ type StepOpts struct {
 	failFn    func(Step, context.Context, Step, *joint.Error)
 }
 
-//GenericStep is a generic Step
-type GenericStep struct {
-	StepOpts
-	Steps []Step
+func NewStepInfo(name string) StepInfo {
+	return StepInfo{Name: name, State: StateNone}
 }
 
-func NewGenericStep(stepOpts StepOpts, steps ...Step) *GenericStep {
+func NewGenericStep(stepInfo StepInfo, steps ...Step) *GenericStep {
 	return &GenericStep{
-		StepOpts: stepOpts,
+		StepInfo: stepInfo,
 		Steps:    steps,
 	}
 }
@@ -64,26 +62,41 @@ func (s *GenericStep) Rollback(reqCtx context.Context) (context.Context, *joint.
 }
 
 func (s *GenericStep) GetInfo() StepInfo {
-	return StepInfo{
-		Name:  s.Name,
-		State: s.State,
-	}
+	return s.StepInfo
 }
 
 func (s *GenericStep) SetState(state State) {
 	s.State = state
 }
 
+func (s *GenericStep) GetSteps() []Step {
+	return s.Steps
+}
+
 ///////////////////////////////////////////////////////////////////////
 //Utility functions for Step
+type StepPredicate func(Step) bool
 
-//GetDeepestActiveSteps returns the leaf steps on the tree of active steps, i.e. the deepest ones
-func GetDeepestActiveSteps(step Step) []Step {
-	info := step.GetInfo()
-	if info.State != StateProcessing && info.State != StateRollingback {
+func Filter(s Step, pred StepPredicate) []Step {
+	var res []Step
+	for _, step := range s.GetSteps() {
+		if pred(step) {
+			res = append(res, step)
+		}
+	}
+	return res
+}
+
+func GetActiveSteps(step Step, deepest bool) []Step {
+	return FindSteps(step, func(s Step) bool {
+		return s.GetInfo().State == StateProcessing || s.GetInfo().State == StateRollingback
+	}, deepest)
+}
+
+func FindSteps(step Step, pred StepPredicate, deepest bool) []Step {
+	if !pred(step) {
 		return nil
 	}
-
 	var res []Step
 
 	switch s := step.(type) {
@@ -93,44 +106,23 @@ func GetDeepestActiveSteps(step Step) []Step {
 			return res
 		}
 		for _, thisStep := range s.Steps {
-			info := thisStep.GetInfo()
-			if info.State == StateProcessing || info.State == StateRollingback {
-				return GetDeepestActiveSteps(thisStep)
+			if pred(thisStep) {
+				if deepest {
+					return FindSteps(thisStep, pred, true)
+				}
+				//look for the first level active steps
+				res = append(res, thisStep)
 			}
 		}
 
-		res = append(res, step)
+		if deepest {
+			res = append(res, step)
+		}
 		return res
 
 	default:
 		res = append(res, s)
 		return res
 	}
-}
 
-//GetFirstLevelActiveSteps returns the first level steps on the tree of active steps
-func GetFirstLevelActiveSteps(step Step) []Step {
-	info := step.GetInfo()
-	if info.State != StateProcessing && info.State != StateRollingback {
-		return nil
-	}
-
-	var res []Step
-	switch s := step.(type) {
-	case *SeqStep:
-		if s.Steps == nil {
-			res = append(res, step)
-			return res
-		}
-		for _, thisStep := range s.Steps {
-			info := thisStep.GetInfo()
-			if info.State == StateProcessing || info.State == StateRollingback {
-				res = append(res, thisStep)
-			}
-		}
-		return res
-	default:
-		res = append(res, step)
-		return res
-	}
 }
