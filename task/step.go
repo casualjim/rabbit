@@ -7,20 +7,23 @@ package task
 
 import (
 	"context"
-
-	"github.com/casualjim/rabbit/joint"
+	"time"
 )
+
+const defaultTimeout = 10 * time.Minute
 
 //StepInfo has the information of a step
 type StepInfo struct {
-	State State
-	Name  string
+	State   State
+	Name    string
+	Timeout time.Duration
 }
 
 //Step is one step of a Task, it can be one single operation or has sequential/parallel steps
 type Step interface {
-	Run(context.Context) (context.Context, *joint.Error)
-	Rollback(context.Context) (context.Context, *joint.Error)
+	//most likely only sequential step would need the returned context to pass to the next context
+	Run(context.Context) (context.Context, error)
+	Rollback(context.Context) (context.Context, error)
 	GetInfo() StepInfo
 	GetSteps() []Step
 }
@@ -30,11 +33,8 @@ type GenericStep struct {
 	StepInfo
 	Steps []Step
 
-	//The successFn signature takes the parent Step, the context and the child step
-	//so that if any information from child step is needed, it can be done in this function.
-	//Same reason for failFn.
-	successFn func(Step, context.Context, Step)
-	failFn    func(Step, context.Context, Step, *joint.Error)
+	successFn func(context.Context, Step)
+	failFn    func(context.Context, Step, error)
 }
 
 func NewStepInfo(name string) StepInfo {
@@ -53,11 +53,11 @@ func NewGenericStep(stepInfo StepInfo, steps ...Step) *GenericStep {
 //Those methods on StepOpts are mostly dummy ones in case if a step does not have or
 //does not need an implementation on certain methods.
 
-func (s *GenericStep) Run(reqCtx context.Context) (context.Context, *joint.Error) {
+func (s *GenericStep) Run(reqCtx context.Context) (context.Context, error) {
 	return reqCtx, nil
 }
 
-func (s *GenericStep) Rollback(reqCtx context.Context) (context.Context, *joint.Error) {
+func (s *GenericStep) Rollback(reqCtx context.Context) (context.Context, error) {
 	return reqCtx, nil
 }
 

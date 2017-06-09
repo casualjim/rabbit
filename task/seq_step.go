@@ -7,8 +7,7 @@ package task
 
 import (
 	"context"
-
-	"github.com/casualjim/rabbit/joint"
+	"sync"
 )
 
 type SeqStep struct {
@@ -23,36 +22,50 @@ func NewSeqStep(stepInfo StepInfo, steps ...Step) *SeqStep {
 }
 
 //Run runs all the steps sequentially. The substeps are responsible to update their states.
-func (s *SeqStep) Run(reqCtx context.Context) (context.Context, *joint.Error) {
+func (s *SeqStep) Run(reqCtx context.Context) (context.Context, error) {
 	s.State = StateProcessing
-	var e *joint.Error
-	var lastStep Step
-	for _, step := range s.Steps {
-		//step.Run() is responsible for updating the ctx.Value(taskRunTime)
-		reqCtx, e = step.Run(reqCtx)
-		lastStep = step
-		if e != nil {
-			s.Fail(reqCtx, step, e)
-			return reqCtx, e
-		}
-	}
-	s.Success(reqCtx, lastStep)
+	var err error
 
+	//need to update to handle cancel
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for _, step := range s.Steps {
+			//step.Run() is responsible for updating the ctx.Value(testRunTime)
+			reqCtx, err = step.Run(reqCtx)
+			select {
+			case <-reqCtx.Done():
+				//need to log the cancel
+				reqCtx, err = s.Rollback(reqCtx)
+				wg.Done()
+				return
+			default:
+			}
+
+		}
+		wg.Done()
+	}()
+	wg.Wait()
+	if err != nil {
+		s.Fail(reqCtx, err)
+		return reqCtx, err
+	}
+	s.Success(reqCtx)
 	return reqCtx, nil
 }
 
-func (s *SeqStep) Success(reqCtx context.Context, step Step) {
+func (s *SeqStep) Success(reqCtx context.Context) {
 	if s.successFn == nil {
 		s.SetState(StateCompleted)
 	} else {
-		s.successFn(s, reqCtx, s)
+		s.successFn(reqCtx, s)
 	}
 }
 
-func (s *SeqStep) Fail(reqCtx context.Context, step Step, e *joint.Error) {
+func (s *SeqStep) Fail(reqCtx context.Context, err error) {
 	if s.failFn == nil {
 		s.SetState(StateFailed)
 	} else {
-		s.failFn(s, reqCtx, step, e)
+		s.failFn(reqCtx, s, err)
 	}
 }
