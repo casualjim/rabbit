@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 )
 
 type ParalStep struct {
@@ -58,6 +57,9 @@ func (s *ParalStep) Run(reqCtx context.Context) (context.Context, error) {
 	var resultErr error
 	var cancelErr error
 
+	var wgCtx sync.WaitGroup
+	wgCtx.Add(1)
+
 	go func(reqCtx context.Context) {
 		ctx := reqCtx
 		getCtx := false
@@ -69,8 +71,11 @@ func (s *ParalStep) Run(reqCtx context.Context) (context.Context, error) {
 		if getCtx {
 			resultCtx = ctx
 		}
+		wgCtx.Done()
 	}(reqCtx)
 
+	var wgErr sync.WaitGroup
+	wgErr.Add(1)
 	go func() {
 		var stepErrors []error
 
@@ -80,6 +85,7 @@ func (s *ParalStep) Run(reqCtx context.Context) (context.Context, error) {
 		if stepErrors != nil {
 			resultErr = s.aggErrorFn(stepErrors)
 		}
+		wgErr.Done()
 	}()
 
 	go func(ctx context.Context) {
@@ -120,10 +126,10 @@ func (s *ParalStep) Run(reqCtx context.Context) (context.Context, error) {
 	close(ctxc)
 	close(errc)
 
+	wgCtx.Wait()
+	wgErr.Wait()
+
 	var errs []error
-	//let us wait a little bit till value received from channels
-	timeout := time.After(2 * time.Second)
-	<-timeout
 
 	// fmt.Printf("step %s processing result\n", s.Name)
 
