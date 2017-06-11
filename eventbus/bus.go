@@ -192,6 +192,7 @@ func (e *defaultEventBus) dispatcherLoop(timeout time.Duration) {
 			e.lock.Unlock()
 
 			closed <- struct{}{}
+			close(closed)
 			e.log.Debug("event bus closed")
 			return
 		}
