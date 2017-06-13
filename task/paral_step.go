@@ -10,7 +10,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 )
 
@@ -21,7 +21,7 @@ type ParalStep struct {
 //NewParalStep creates a new parallel step whose substeps can be executed at the same time
 //Note that the new Step should be of state StepStateNone, and all of its substeps should be of state StepStateNone too.
 func NewParalStep(stepInfo StepInfo,
-	log logrus.FieldLogger,
+	log rabbit.Logger,
 	contextfn func([]context.Context) context.Context,
 	errorfn func([]error) error,
 	handlerFn func(eventbus.Event) error,
@@ -31,7 +31,7 @@ func NewParalStep(stepInfo StepInfo,
 	s := &ParalStep{
 		GenericStep: GenericStep{
 			StepInfo:       stepInfo,
-			log:            Logger(log),
+			Log:            Logger(log),
 			contextHandler: NewContextHandler(contextfn),
 			errorHandler:   NewErrorHandler(errorfn),
 			eventHandler:   NewEventHandler(handlerFn),
@@ -39,7 +39,7 @@ func NewParalStep(stepInfo StepInfo,
 	}
 
 	for _, step := range steps {
-		step.SetLogger(s.log)
+		step.SetLogger(s.Log)
 	}
 	return s
 }
@@ -106,7 +106,7 @@ func (s *ParalStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.
 		select {
 		case <-reqCtx.Done():
 			cancelErr = errors.New("step " + s.Name + " canceled")
-			s.log.Debugf("step %s got canceled", s.Name)
+			s.Log.Printf("step %s got canceled", s.Name)
 		}
 
 	}(reqCtx)
@@ -147,7 +147,7 @@ func (s *ParalStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.
 		}
 		runError = s.errorHandler(errs)
 
-		s.log.Debugf("step %s canceled. %s", s.Name, runError)
+		s.Log.Printf("step %s canceled. %s", s.Name, runError)
 		return reqCtx, runError
 
 	} else if resultErr != nil {
@@ -155,7 +155,7 @@ func (s *ParalStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.
 		runError = s.errorHandler(errs)
 		s.Fail(reqCtx, runError)
 
-		s.log.Debugf("step %s failed, %s", s.Name, runError.Error())
+		s.Log.Printf("step %s failed, %s", s.Name, runError.Error())
 		return reqCtx, runError
 
 	} else if resultCtx != nil {

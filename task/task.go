@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 	"github.com/go-openapi/strfmt"
 	"github.com/pborman/uuid"
@@ -25,7 +26,7 @@ type Task struct {
 	TaskStep Step            `json:"taskstep,omitempty"`
 
 	ctx          context.Context
-	log          logrus.FieldLogger
+	log          rabbit.Logger
 	eventBus     eventbus.EventBus
 	eventHandler eventbus.EventHandler
 	errorHandler func([]error) error
@@ -60,7 +61,7 @@ type TaskOpts struct {
 	FailFn    func(*Task, error)
 	HandlerFn func(eventbus.Event) error
 	ErrorFn   func([]error) error
-	Log       logrus.FieldLogger
+	Log       rabbit.Logger
 }
 
 func NewTask(taskOpts TaskOpts, step Step) (*Task, error) {
@@ -94,7 +95,7 @@ func (t *Task) Run() error {
 
 		select {
 		case <-t.ctx.Done():
-			t.log.Debugf("task %s got canceled", t.Name)
+			t.log.Printf("task %s got canceled", t.Name)
 			rollbackErr := t.Rollback()
 			runErr = t.errorHandler([]error{err, rollbackErr})
 			wg.Done()
@@ -108,10 +109,10 @@ func (t *Task) Run() error {
 	wg.Wait()
 
 	if runErr == nil {
-		t.log.Debugf("task %s succeeded", t.Name)
+		t.log.Printf("task %s succeeded", t.Name)
 		t.Success()
 	} else {
-		t.log.Debugf("task %s failed, %s", t.Name, runErr.Error())
+		t.log.Printf("task %s failed, %s", t.Name, runErr.Error())
 		t.Fail(runErr)
 	}
 
@@ -199,7 +200,7 @@ func NewEventHandler(evtfn func(eventbus.Event) error) eventbus.EventHandler {
 	return eventbus.Handler(evtfn)
 }
 
-func Logger(log logrus.FieldLogger) logrus.FieldLogger {
+func Logger(log rabbit.Logger) rabbit.Logger {
 	if log == nil {
 		return logrus.New()
 	}

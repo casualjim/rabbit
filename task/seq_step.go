@@ -10,7 +10,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 )
 
@@ -21,7 +21,7 @@ type SeqStep struct {
 //NewSeqStep creates a new sequential step
 //Note that the new SeqStep should be of state StepStateNone, and all of its substeps should be of state StepStateNone too.
 func NewSeqStep(stepInfo StepInfo,
-	log logrus.FieldLogger,
+	log rabbit.Logger,
 	contextfn func([]context.Context) context.Context,
 	errorfn func([]error) error,
 	handlerFn func(eventbus.Event) error,
@@ -31,7 +31,7 @@ func NewSeqStep(stepInfo StepInfo,
 	s := &SeqStep{
 		GenericStep: GenericStep{
 			StepInfo:       stepInfo,
-			log:            Logger(log),
+			Log:            Logger(log),
 			contextHandler: NewContextHandler(contextfn),
 			errorHandler:   NewErrorHandler(errorfn),
 			eventHandler:   NewEventHandler(handlerFn),
@@ -39,7 +39,7 @@ func NewSeqStep(stepInfo StepInfo,
 	}
 
 	for _, step := range steps {
-		step.SetLogger(s.log)
+		step.SetLogger(s.Log)
 	}
 	return s
 
@@ -62,7 +62,7 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 			reqCtx, err = step.Run(reqCtx, bus)
 			select {
 			case <-reqCtx.Done():
-				s.log.Debugf("step %s got canceled", s.Name)
+				s.Log.Printf("step %s got canceled", s.Name)
 				cancelErr := errors.New("step " + s.Name + " canceled")
 				_, rollbackErr := s.Rollback(reqCtx, bus)
 				err = s.errorHandler([]error{err, cancelErr, rollbackErr})
@@ -79,7 +79,7 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 	wg.Wait()
 	if err != nil {
 		s.Fail(reqCtx, err)
-		s.log.Debugf("step %s failed, %s", s.Name, err.Error())
+		s.Log.Printf("step %s failed, %s", s.Name, err.Error())
 		return reqCtx, err
 	}
 	s.Success(reqCtx)

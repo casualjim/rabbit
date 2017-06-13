@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -117,17 +118,17 @@ type defaultEventBus struct {
 	channel      chan Event
 	handlers     []*eventSubcription
 	closing      chan chan struct{}
-	log          logrus.FieldLogger
+	log          rabbit.Logger
 	errorHandler func(error)
 }
 
 // New event bus with specified logger
-func New(log logrus.FieldLogger) EventBus {
+func New(log rabbit.Logger) EventBus {
 	return NewWithTimeout(log, 100*time.Millisecond)
 }
 
 // NewWithTimeout creates a new eventbus with a timeout after which an event handler gets cancelled
-func NewWithTimeout(log logrus.FieldLogger, timeout time.Duration) EventBus {
+func NewWithTimeout(log rabbit.Logger, timeout time.Duration) EventBus {
 	if log == nil {
 		log = logrus.New().WithFields(nil)
 	}
@@ -136,7 +137,7 @@ func NewWithTimeout(log logrus.FieldLogger, timeout time.Duration) EventBus {
 		channel:      make(chan Event, 100),
 		log:          log,
 		lock:         new(sync.RWMutex),
-		errorHandler: func(err error) { log.Errorln(err) },
+		errorHandler: func(err error) { log.Println(err) },
 	}
 	go e.dispatcherLoop(timeout)
 	return e
@@ -147,7 +148,7 @@ func (e *defaultEventBus) dispatcherLoop(timeout time.Duration) {
 	for {
 		select {
 		case evt := <-e.channel:
-			e.log.Debugf("Got event %+v in channel\n", evt)
+			e.log.Printf("Got event %+v in channel\n", evt)
 			timer := metrics.GetOrRegisterTimer("events.notify", metrics.DefaultRegistry)
 			go timer.Time(func() {
 				totWait.Add(1)
@@ -155,7 +156,7 @@ func (e *defaultEventBus) dispatcherLoop(timeout time.Duration) {
 
 				noh := len(e.handlers)
 				if noh == 0 {
-					e.log.Debugf("there are no active listeners, skipping broadcast")
+					e.log.Printf("there are no active listeners, skipping broadcast")
 					e.lock.RUnlock()
 					totWait.Done()
 					return
@@ -163,7 +164,7 @@ func (e *defaultEventBus) dispatcherLoop(timeout time.Duration) {
 
 				var wg sync.WaitGroup
 				wg.Add(noh)
-				e.log.Debugf("notifying %d listeners", noh)
+				e.log.Printf("notifying %d listeners", noh)
 				for _, handler := range e.handlers {
 					go func(listener chan<- Event) {
 						timer := time.NewTimer(timeout)
@@ -171,7 +172,7 @@ func (e *defaultEventBus) dispatcherLoop(timeout time.Duration) {
 						case listener <- evt:
 							timer.Stop()
 						case <-timer.C:
-							e.log.Warnf("Failed to send event %+v to listener within %v", evt, timeout)
+							e.log.Printf("Failed to send event %+v to listener within %v", evt, timeout)
 						}
 						wg.Done()
 					}(handler.listener)
@@ -193,7 +194,7 @@ func (e *defaultEventBus) dispatcherLoop(timeout time.Duration) {
 
 			closed <- struct{}{}
 			close(closed)
-			e.log.Debug("event bus closed")
+			e.log.Printf("event bus closed")
 			return
 		}
 	}
@@ -215,7 +216,7 @@ func (e *defaultEventBus) Publish(evt Event) {
 // Subscribe to events published in the bus
 func (e *defaultEventBus) Subscribe(handlers ...EventHandler) {
 	e.lock.Lock()
-	e.log.Debugf("adding %d listeners", len(handlers))
+	e.log.Printf("adding %d listeners", len(handlers))
 	for _, handler := range handlers {
 		sub := newSubscription(handler, e.errorHandler)
 		e.handlers = append(e.handlers, sub)
@@ -227,11 +228,11 @@ func (e *defaultEventBus) Subscribe(handlers ...EventHandler) {
 func (e *defaultEventBus) Unsubscribe(handlers ...EventHandler) {
 	e.lock.Lock()
 	if len(e.handlers) == 0 {
-		e.log.Debugf("nothing to remove from", len(handlers))
+		e.log.Println("nothing to remove from", len(handlers))
 		e.lock.Unlock()
 		return
 	}
-	e.log.Debugf("removing %d listeners", len(handlers))
+	e.log.Printf("removing %d listeners", len(handlers))
 	for _, h := range handlers {
 		for i, handler := range e.handlers {
 			if handler.Matches(h) {
@@ -246,7 +247,7 @@ func (e *defaultEventBus) Unsubscribe(handlers ...EventHandler) {
 }
 
 func (e *defaultEventBus) Close() error {
-	e.log.Debugf("closing eventbus")
+	e.log.Printf("closing eventbus")
 	ch := make(chan struct{})
 	e.closing <- ch
 	<-ch
@@ -256,7 +257,7 @@ func (e *defaultEventBus) Close() error {
 }
 
 func (e *defaultEventBus) Len() int {
-	e.log.Debugf("getting the length of the handlers")
+	e.log.Printf("getting the length of the handlers")
 	e.lock.RLock()
 	sz := len(e.handlers)
 	e.lock.RUnlock()
