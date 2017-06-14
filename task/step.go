@@ -8,7 +8,7 @@ package task
 import (
 	"context"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 )
 
@@ -25,14 +25,14 @@ type Step interface {
 	Rollback(context.Context, eventbus.EventBus) (context.Context, error)
 	GetInfo() StepInfo
 	GetSteps() []Step
-	SetLogger(logrus.FieldLogger)
+	SetLogger(rabbit.Logger)
 }
 
 //GenericStep is a generic Step
 type GenericStep struct {
 	StepInfo
 	Steps []Step
-	log   logrus.FieldLogger
+	Log   rabbit.Logger
 
 	//contextHandler handles the returned contexts from substeps, for example combines some values carried in those contexts
 	contextHandler func([]context.Context) context.Context
@@ -50,10 +50,10 @@ func NewStepInfo(name string) StepInfo {
 	return StepInfo{Name: name, State: StateNone}
 }
 
-func NewGenericStep(stepInfo StepInfo, log logrus.FieldLogger, steps ...Step) *GenericStep {
+func NewGenericStep(stepInfo StepInfo, log rabbit.Logger, steps ...Step) *GenericStep {
 	return &GenericStep{
 		StepInfo: stepInfo,
-		log:      Logger(log),
+		Log:      Logger(log),
 		Steps:    steps,
 	}
 }
@@ -103,8 +103,8 @@ func (s *GenericStep) SetEventHandler(fn func(eventbus.Event) error) {
 	s.eventHandler = eventbus.Handler(fn)
 }
 
-func (s *GenericStep) SetLogger(log logrus.FieldLogger) {
-	s.log = log
+func (s *GenericStep) SetLogger(log rabbit.Logger) {
+	s.Log = log
 }
 
 ///////////////////////////////////////////////////////////////////////
