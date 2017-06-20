@@ -102,14 +102,14 @@ func (s *ParalStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.
 		wgErr.Done()
 	}()
 
-	go func(ctx context.Context) {
+	go func() {
 		select {
 		case <-reqCtx.Done():
 			cancelErr = errors.New("step " + s.Name + " canceled")
 			s.Log.Printf("step %s got canceled", s.Name)
 		}
 
-	}(reqCtx)
+	}()
 
 	var wgCancel sync.WaitGroup
 	wgCancel.Add(len(s.Steps))
