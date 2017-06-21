@@ -26,6 +26,7 @@ type Step interface {
 	GetInfo() StepInfo
 	GetSteps() []Step
 	SetLogger(rabbit.Logger)
+	SetState(State)
 }
 
 //GenericStep is a generic Step
@@ -105,6 +106,22 @@ func (s *GenericStep) SetEventHandler(fn func(eventbus.Event) error) {
 
 func (s *GenericStep) SetLogger(log rabbit.Logger) {
 	s.Log = log
+}
+
+func (s *GenericStep) Success(reqCtx context.Context) {
+	if s.successFn == nil {
+		s.SetState(StateCompleted)
+	} else {
+		s.successFn(reqCtx, s)
+	}
+}
+
+func (s *GenericStep) Fail(reqCtx context.Context, err error) {
+	if s.failFn == nil {
+		s.SetState(StateFailed)
+	} else {
+		s.failFn(reqCtx, s, err)
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////

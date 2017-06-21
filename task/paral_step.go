@@ -44,22 +44,6 @@ func NewParalStep(stepInfo StepInfo,
 	return s
 }
 
-func (s *ParalStep) Success(reqCtx context.Context) {
-	if s.successFn == nil {
-		s.SetState(StateCompleted)
-	} else {
-		s.successFn(reqCtx, s)
-	}
-}
-
-func (s *ParalStep) Fail(reqCtx context.Context, err error) {
-	if s.failFn == nil {
-		s.SetState(StateFailed)
-	} else {
-		s.failFn(reqCtx, s, err)
-	}
-}
-
 func (s *ParalStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
 	s.State = StateProcessing
 
