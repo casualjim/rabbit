@@ -47,7 +47,7 @@ func NewSeqStep(stepInfo StepInfo,
 
 //Run runs all the steps sequentially. The substeps are responsible to update their states.
 func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
-	s.State = StateProcessing
+	s.SetState(StateProcessing)
 
 	if s.eventHandler != nil {
 		bus.Subscribe(s.eventHandler)
@@ -59,11 +59,13 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 	go func() {
 		for _, step := range s.Steps {
 			//the step run is responsible for updating the ctx.Value(testRunTime)
+			step.SetState(StateProcessing)
 			reqCtx, err = step.Run(reqCtx, bus)
 			select {
 			case <-reqCtx.Done():
 				s.Log.Printf("step %s got canceled", s.Name)
 				cancelErr := errors.New("step " + s.Name + " canceled")
+				step.SetState(StateCanceled)
 				_, rollbackErr := s.Rollback(reqCtx, bus)
 				err = s.errorHandler([]error{err, cancelErr, rollbackErr})
 				wg.Done()
@@ -71,8 +73,10 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 			default:
 			}
 			if err != nil {
+				step.SetState(StateFailed)
 				break
 			}
+			step.SetState(StateCompleted)
 		}
 		wg.Done()
 	}()
@@ -84,20 +88,4 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 	}
 	s.Success(reqCtx)
 	return reqCtx, nil
-}
-
-func (s *SeqStep) Success(reqCtx context.Context) {
-	if s.successFn == nil {
-		s.SetState(StateCompleted)
-	} else {
-		s.successFn(reqCtx, s)
-	}
-}
-
-func (s *SeqStep) Fail(reqCtx context.Context, err error) {
-	if s.failFn == nil {
-		s.SetState(StateFailed)
-	} else {
-		s.failFn(reqCtx, s, err)
-	}
 }

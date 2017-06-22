@@ -151,6 +151,13 @@ func TestSeqStepRunSuccess(t *testing.T) {
 	assert.Equal(t, runtimeresult.LeaderIP[1], "10.0.0.2")
 
 	assert.Equal(t, seqStep.State, StateCompleted)
+	stepsCompleted := FindSteps(seqStep, func(s Step) bool {
+		if s.GetInfo().State == StateCompleted {
+			return true
+		}
+		return false
+	}, false)
+	assert.Equal(t, len(stepsCompleted), len(seqStep.Steps))
 	assert.NoError(t, err)
 }
 
