@@ -19,14 +19,14 @@ type ParalStep struct {
 }
 
 //NewParalStep creates a new parallel step whose substeps can be executed at the same time
-//Note that the new Step should be of state StepStateNone, and all of its substeps should be of state StepStateNone too.
+//Note that the new Step should be of state StateWaiting, and all of its substeps should be of state StateWaiting too.
 func NewParalStep(stepInfo StepInfo,
 	log rabbit.Logger,
 	contextfn func([]context.Context) context.Context,
 	errorfn func([]error) error,
 	handlerFn func(eventbus.Event) error,
 	steps ...Step) *ParalStep {
-	//the caller is responsible to make sure stepOpts and all step's state are set to StateNone
+	//the caller is responsible to make sure stepOpts and all step's state are set to StateWaiting
 
 	s := &ParalStep{
 		GenericStep: GenericStep{

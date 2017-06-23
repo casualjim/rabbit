@@ -48,7 +48,7 @@ type GenericStep struct {
 }
 
 func NewStepInfo(name string) StepInfo {
-	return StepInfo{Name: name, State: StateNone}
+	return StepInfo{Name: name, State: StateWaiting}
 }
 
 func NewGenericStep(stepInfo StepInfo, log rabbit.Logger, steps ...Step) *GenericStep {

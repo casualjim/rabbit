@@ -39,7 +39,7 @@ type Task struct {
 type State string
 
 const (
-	StateNone        State = "none"
+	StateWaiting     State = "waiting"
 	StateCreated     State = "created"
 	StateProcessing  State = "processing"
 	StateCompleted   State = "completed"
@@ -126,7 +126,7 @@ func (t *Task) Rollback() error {
 //CheckStatus gives the state of the task's step
 func (t *Task) CheckStatus() State {
 	info := t.TaskStep.GetInfo()
-	if info.State == StateNone {
+	if info.State == StateWaiting {
 		return StateCreated
 	}
 	return info.State
