@@ -19,14 +19,14 @@ type SeqStep struct {
 }
 
 //NewSeqStep creates a new sequential step
-//Note that the new SeqStep should be of state StepStateNone, and all of its substeps should be of state StepStateNone too.
+//Note that the new SeqStep should be of state StateWaiting, and all of its substeps should be of state StateWaiting too.
 func NewSeqStep(stepInfo StepInfo,
 	log rabbit.Logger,
 	contextfn func([]context.Context) context.Context,
 	errorfn func([]error) error,
 	handlerFn func(eventbus.Event) error,
 	steps ...Step) *SeqStep {
-	//the caller is responsible to make sure stepOpts and all substep's state are set to StateNone
+	//the caller is responsible to make sure stepOpts and all substep's state are set to StateWaiting
 
 	s := &SeqStep{
 		GenericStep: GenericStep{

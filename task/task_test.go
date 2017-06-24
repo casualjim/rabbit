@@ -205,7 +205,7 @@ func TestTaskRunSucceed(t *testing.T) {
 
 	taskOpts := TaskOpts{Type: TaskTypeTest, Ctx: context.Background()}
 
-	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "create leader", State: StateNone}, 2, "", Leader, false, "10.0.0.2"))
+	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "create leader", State: StateWaiting}, 2, "", Leader, false, "10.0.0.2"))
 
 	state := task.CheckStatus()
 	//job is just created, not running
@@ -240,7 +240,7 @@ func TestTaskRunFail(t *testing.T) {
 
 	taskOpts := TaskOpts{Type: TaskTypeTest, Ctx: context.Background()}
 
-	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "CreateLeader", State: StateNone}, 0, "", Leader, true, "10.0.0.2"))
+	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "CreateLeader", State: StateWaiting}, 0, "", Leader, true, "10.0.0.2"))
 
 	state := task.CheckStatus()
 	//job is just created, not running
@@ -266,7 +266,7 @@ func TestTaskRunCancel(t *testing.T) {
 
 	taskOpts := TaskOpts{Log: logrus.New(), Type: TaskTypeTest, Ctx: context.Background()}
 
-	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "CreateLeader", State: StateNone}, 2, "", Leader, true, "10.0.0.2"))
+	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "CreateLeader", State: StateWaiting}, 2, "", Leader, true, "10.0.0.2"))
 	ctx, cancel := context.WithCancel(task.ctx)
 	task.ctx = ctx
 

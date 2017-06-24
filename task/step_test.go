@@ -69,8 +69,8 @@ func setupSeqStepFail() *SeqStep {
 
 	return NewSeqStep(
 		stepOpts, nil, testAggContext, testErrorHandler, nil,
-		newTestUnitStep(StepInfo{Name: "create leader 1", State: StateNone}, 2, "", Leader, true, "10.0.0.1"),
-		newTestUnitStep(StepInfo{Name: "create leader 2", State: StateNone}, 2, "", Leader, false, "10.0.0.2"),
+		newTestUnitStep(StepInfo{Name: "create leader 1", State: StateWaiting}, 2, "", Leader, true, "10.0.0.1"),
+		newTestUnitStep(StepInfo{Name: "create leader 2", State: StateWaiting}, 2, "", Leader, false, "10.0.0.2"),
 	)
 }
 
@@ -79,8 +79,8 @@ func setupSeqStepSucceess() *SeqStep {
 
 	return NewSeqStep(
 		stepOpts, nil, nil, nil, nil,
-		newTestUnitStep(StepInfo{Name: "create leader 1", State: StateNone}, 2, "", Leader, false, "10.0.0.1"),
-		newTestUnitStep(StepInfo{Name: "create leader 2", State: StateNone}, 2, "", Leader, false, "10.0.0.2"),
+		newTestUnitStep(StepInfo{Name: "create leader 1", State: StateWaiting}, 2, "", Leader, false, "10.0.0.1"),
+		newTestUnitStep(StepInfo{Name: "create leader 2", State: StateWaiting}, 2, "", Leader, false, "10.0.0.2"),
 	)
 }
 
@@ -96,21 +96,21 @@ func setupSeqStep() *SeqStep {
 				NewSeqStep(StepInfo{Name: "S112", State: StateProcessing}, nil, nil, nil, nil),
 			),
 			NewSeqStep(
-				StepInfo{Name: "S12", State: StateNone}, nil, nil, nil, nil,
+				StepInfo{Name: "S12", State: StateWaiting}, nil, nil, nil, nil,
 			),
 		),
 		NewSeqStep(
-			StepInfo{Name: "S2", State: StateNone}, nil, nil, nil, nil,
+			StepInfo{Name: "S2", State: StateWaiting}, nil, nil, nil, nil,
 		),
 		NewSeqStep(
-			StepInfo{Name: "S3", State: StateNone}, nil, nil, nil, nil,
+			StepInfo{Name: "S3", State: StateWaiting}, nil, nil, nil, nil,
 			NewSeqStep(
-				StepInfo{Name: "S31", State: StateNone}, nil, nil, nil, nil,
-				NewSeqStep(StepInfo{Name: "S311", State: StateNone}, nil, nil, nil, nil),
-				NewSeqStep(StepInfo{Name: "S312", State: StateNone}, nil, nil, nil, nil),
+				StepInfo{Name: "S31", State: StateWaiting}, nil, nil, nil, nil,
+				NewSeqStep(StepInfo{Name: "S311", State: StateWaiting}, nil, nil, nil, nil),
+				NewSeqStep(StepInfo{Name: "S312", State: StateWaiting}, nil, nil, nil, nil),
 			),
 			NewSeqStep(
-				StepInfo{Name: "S32", State: StateNone}, nil, nil, nil, nil,
+				StepInfo{Name: "S32", State: StateWaiting}, nil, nil, nil, nil,
 			),
 		),
 	)
@@ -178,27 +178,27 @@ func TestGetActiveSteps(t *testing.T) {
 //set up a step with a few substeps, the deepest active step is S112
 func setupParalStepSuccess() *ParalStep {
 	return NewParalStep(
-		StepInfo{Name: "Create Clusters", State: StateNone},
+		StepInfo{Name: "Create Clusters", State: StateWaiting},
 		nil,
 		testAggContext,
 		testErrorHandler,
 		testEventHandlerFn,
 		NewSeqStep(
-			StepInfo{Name: "Create Cluster 1", State: StateNone},
+			StepInfo{Name: "Create Cluster 1", State: StateWaiting},
 			nil,
 			testAggContext,
 			testErrorHandler,
 			nil,
 			NewParalStep(
-				StepInfo{Name: "Create Leader", State: StateNone},
+				StepInfo{Name: "Create Leader", State: StateWaiting},
 				nil,
 				testAggContext,
 				testErrorHandler,
 				nil,
-				newTestUnitStep(StepInfo{Name: "Create Leader 1", State: StateNone}, 3, "", Leader, false, "10.0.0.1"),
-				newTestUnitStep(StepInfo{Name: "Create Leader 2", State: StateNone}, 4, "", Leader, false, "10.0.0.2"),
+				newTestUnitStep(StepInfo{Name: "Create Leader 1", State: StateWaiting}, 3, "", Leader, false, "10.0.0.1"),
+				newTestUnitStep(StepInfo{Name: "Create Leader 2", State: StateWaiting}, 4, "", Leader, false, "10.0.0.2"),
 			),
-			newTestUnitStep(StepInfo{Name: "Create Worker 1", State: StateNone}, 1, "", Worker, false, "10.0.0.3"),
+			newTestUnitStep(StepInfo{Name: "Create Worker 1", State: StateWaiting}, 1, "", Worker, false, "10.0.0.3"),
 		),
 	)
 }
@@ -206,41 +206,41 @@ func setupParalStepSuccess() *ParalStep {
 //set up a step with a few substeps, the deepest active step is S112
 func setupParalStepFailFast() *ParalStep {
 	return NewParalStep(
-		StepInfo{Name: "Create Cluster", State: StateNone},
+		StepInfo{Name: "Create Cluster", State: StateWaiting},
 		nil,
 
 		testAggContext,
 		testErrorHandler,
 		testEventHandlerFn,
-		newTestUnitStep(StepInfo{Name: "Create Leader 1", State: StateNone}, 1, "", Leader, true, "10.0.0.1"),
+		newTestUnitStep(StepInfo{Name: "Create Leader 1", State: StateWaiting}, 1, "", Leader, true, "10.0.0.1"),
 	)
 }
 
 //set up a step with a few substeps, the deepest active step is S112
 func setupParalStepFail() *ParalStep {
 	return NewParalStep(
-		StepInfo{Name: "Create Clusters", State: StateNone},
+		StepInfo{Name: "Create Clusters", State: StateWaiting},
 		nil,
 		testAggContext,
 		testErrorHandler,
 		testEventHandlerFn,
 		NewSeqStep(
-			StepInfo{Name: "Create Cluster 1", State: StateNone},
+			StepInfo{Name: "Create Cluster 1", State: StateWaiting},
 			nil,
 			testAggContext,
 			testErrorHandler,
 			testEventHandlerFn,
 			NewParalStep(
-				StepInfo{Name: "Create Leader", State: StateNone},
+				StepInfo{Name: "Create Leader", State: StateWaiting},
 				nil,
 
 				testAggContext,
 				testErrorHandler,
 				testEventHandlerFn,
-				newTestUnitStep(StepInfo{Name: "Create Leader 1", State: StateNone}, 3, "", Leader, true, "10.0.0.1"),
-				newTestUnitStep(StepInfo{Name: "Create Leader 2", State: StateNone}, 4, "", Leader, true, "10.0.0.2"),
+				newTestUnitStep(StepInfo{Name: "Create Leader 1", State: StateWaiting}, 3, "", Leader, true, "10.0.0.1"),
+				newTestUnitStep(StepInfo{Name: "Create Leader 2", State: StateWaiting}, 4, "", Leader, true, "10.0.0.2"),
 			),
-			newTestUnitStep(StepInfo{Name: "Create Worker 1", State: StateNone}, 1, "", Worker, false, "10.0.0.3"),
+			newTestUnitStep(StepInfo{Name: "Create Worker 1", State: StateWaiting}, 1, "", Worker, false, "10.0.0.3"),
 		),
 	)
 }
