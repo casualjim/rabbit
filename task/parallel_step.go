@@ -55,7 +55,6 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 	var cancelErr error
 	ctxc := make(chan context.Context)
 	errc := make(chan error)
-	done := make(chan struct{})
 
 	var wgService sync.WaitGroup
 
@@ -114,29 +113,7 @@ OuterLoop:
 		}(step, ctx)
 	}
 
-	// If not canceled while running substeps, start a background goroutine to
-	// capture cancelErr
-	if cancelErr == nil {
-		wgService.Add(1)
-		go func() {
-			select {
-			case <-reqCtx.Done():
-				cancelErr = errors.New("step " + s.GetName() + " canceled")
-				s.Log.Printf("step %s got canceled", s.GetName())
-			case <-done:
-				wgService.Done()
-			}
-		}()
-	}
-
 	wgSubSteps.Wait()
-
-	// Note: after wgSubSteps.Wait() and before we close done, if reqCtx were
-	// associated with a timer(cancle and timeout ctx) and it fired, there are
-	// still chances that cancelErr is set even though wgSubSteps.Wait()'s already
-	// returned here, meaning whole step is done before cancelling.
-	// TODO: So we still have a bug here
-	close(done)
 
 	// After wgSubSteps.Wait() returned, all workers have returned, so it's safe to
 	// close ctxc and errc here. Thus goroutines which are ranging on these
@@ -146,12 +123,8 @@ OuterLoop:
 
 	wgService.Wait()
 
-	// No need to put a lock on cancelErr here, because wgService.Wait()
-	// guarantees cancelErr is written before this read
-	ce := cancelErr
-
 	var errs []error
-	if ce != nil {
+	if cancelErr != nil {
 		if resultErr != nil {
 			errs = append(errs, resultErr)
 		}
