@@ -52,13 +52,15 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 	var runError error
 	var resultCtx context.Context
 	var resultErr error
-	ceL := new(sync.Mutex)
 	var cancelErr error
 	ctxc := make(chan context.Context)
 	errc := make(chan error)
+	done := make(chan struct{})
 
-	var wgCtx sync.WaitGroup
-	wgCtx.Add(1)
+	var wgService sync.WaitGroup
+
+	// Start a background goroutine for handling substep passed ctxs
+	wgService.Add(1)
 	go func(reqCtx context.Context) {
 		getCtx := false
 
@@ -70,11 +72,11 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 		if getCtx {
 			resultCtx = s.contextHandler(ctxs)
 		}
-		wgCtx.Done()
+		wgService.Done()
 	}(reqCtx)
 
-	var wgErr sync.WaitGroup
-	wgErr.Add(1)
+	// Start a background goroutine for handling substep passed errors
+	wgService.Add(1)
 	go func() {
 		var stepErrors []error
 
@@ -84,24 +86,23 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 		if stepErrors != nil {
 			resultErr = s.errorHandler(stepErrors)
 		}
-		wgErr.Done()
+		wgService.Done()
 	}()
 
-	go func() {
-		select {
-		case <-reqCtx.Done():
-			ceL.Lock()
-			cancelErr = errors.New("step " + s.GetName() + " canceled")
-			ceL.Unlock()
-			s.Log.Printf("step %s got canceled", s.GetName())
-		}
+	var wgSubSteps sync.WaitGroup
 
-	}()
-
-	var wgCancel sync.WaitGroup
-	wgCancel.Add(len(s.Steps))
+OuterLoop:
 	for _, step := range s.Steps {
 		ctx := reqCtx
+		// Before we run every step, check whether root step is canceled already
+		select {
+		case <-ctx.Done():
+			cancelErr = errors.New("step " + s.GetName() + " canceled")
+			s.Log.Printf("step %s got canceled", s.GetName())
+			break OuterLoop
+		default:
+		}
+		wgSubSteps.Add(1)
 		go func(step Step, ctx context.Context) {
 			ctx, err := step.Run(ctx, bus)
 			if err != nil {
@@ -109,20 +110,45 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 			} else {
 				ctxc <- ctx
 			}
-			wgCancel.Done()
+			wgSubSteps.Done()
 		}(step, ctx)
 	}
 
-	wgCancel.Wait()
+	// If not canceled while running substeps, start a background goroutine to
+	// capture cancelErr
+	if cancelErr == nil {
+		wgService.Add(1)
+		go func() {
+			select {
+			case <-reqCtx.Done():
+				cancelErr = errors.New("step " + s.GetName() + " canceled")
+				s.Log.Printf("step %s got canceled", s.GetName())
+			case <-done:
+				wgService.Done()
+			}
+		}()
+	}
+
+	wgSubSteps.Wait()
+
+	// Note: after wgSubSteps.Wait() and before we close done, if reqCtx were
+	// associated with a timer(cancle and timeout ctx) and it fired, there are
+	// still chances that cancelErr is set even though wgSubSteps.Wait()'s already
+	// returned here, meaning whole step is done before cancelling.
+	// TODO: So we still have a bug here
+	close(done)
+
+	// After wgSubSteps.Wait() returned, all workers have returned, so it's safe to
+	// close ctxc and errc here. Thus goroutines which are ranging on these
+	// channels will safely return
 	close(ctxc)
 	close(errc)
 
-	wgCtx.Wait()
-	wgErr.Wait()
+	wgService.Wait()
 
-	ceL.Lock()
+	// No need to put a lock on cancelErr here, because wgService.Wait()
+	// guarantees cancelErr is written before this read
 	ce := cancelErr
-	ceL.Unlock()
 
 	var errs []error
 	if ce != nil {
