@@ -176,8 +176,8 @@ func TestGetActiveSteps(t *testing.T) {
 }
 
 //set up a step with a few substeps, the deepest active step is S112
-func setupParalStepSuccess() *ParalStep {
-	return NewParalStep(
+func setupParallelStepSuccess() *ParallelStep {
+	return NewParallelStep(
 		StepInfo{Name: "Create Clusters", State: StateWaiting},
 		nil,
 		testAggContext,
@@ -189,7 +189,7 @@ func setupParalStepSuccess() *ParalStep {
 			testAggContext,
 			testErrorHandler,
 			nil,
-			NewParalStep(
+			NewParallelStep(
 				StepInfo{Name: "Create Leader", State: StateWaiting},
 				nil,
 				testAggContext,
@@ -204,8 +204,8 @@ func setupParalStepSuccess() *ParalStep {
 }
 
 //set up a step with a few substeps, the deepest active step is S112
-func setupParalStepFailFast() *ParalStep {
-	return NewParalStep(
+func setupParallelStepFailFast() *ParallelStep {
+	return NewParallelStep(
 		StepInfo{Name: "Create Cluster", State: StateWaiting},
 		nil,
 
@@ -217,8 +217,8 @@ func setupParalStepFailFast() *ParalStep {
 }
 
 //set up a step with a few substeps, the deepest active step is S112
-func setupParalStepFail() *ParalStep {
-	return NewParalStep(
+func setupParallelStepFail() *ParallelStep {
+	return NewParallelStep(
 		StepInfo{Name: "Create Clusters", State: StateWaiting},
 		nil,
 		testAggContext,
@@ -230,7 +230,7 @@ func setupParalStepFail() *ParalStep {
 			testAggContext,
 			testErrorHandler,
 			testEventHandlerFn,
-			NewParalStep(
+			NewParallelStep(
 				StepInfo{Name: "Create Leader", State: StateWaiting},
 				nil,
 
@@ -245,13 +245,13 @@ func setupParalStepFail() *ParalStep {
 	)
 }
 
-func TestParalStepRunSuccess(t *testing.T) {
+func TestParallelStepRunSuccess(t *testing.T) {
 	reqCtx := context.Background()
 
-	paralStep := setupParalStepSuccess()
+	parallelStep := setupParallelStepSuccess()
 	bus := eventbus.New(logrus.New())
 
-	reqCtx, err := paralStep.Run(reqCtx, bus)
+	reqCtx, err := parallelStep.Run(reqCtx, bus)
 
 	//check the value is passed through context
 	runtimeresult, _ := testFromContext(reqCtx)
@@ -262,12 +262,12 @@ func TestParalStepRunSuccess(t *testing.T) {
 	assert.Equal(t, err, nil)
 }
 
-func TestParalStepRunFailFast(t *testing.T) {
+func TestParallelStepRunFailFast(t *testing.T) {
 	reqCtx := context.Background()
 
 	//setup a paral step which fails fast
 
-	paralStep := setupParalStepFailFast()
+	parallelStep := setupParallelStepFailFast()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -276,7 +276,7 @@ func TestParalStepRunFailFast(t *testing.T) {
 	bus := eventbus.New(logrus.New())
 
 	go func() {
-		_, err = paralStep.Run(reqCtx, bus)
+		_, err = parallelStep.Run(reqCtx, bus)
 		wg.Done()
 	}()
 
@@ -287,14 +287,14 @@ func TestParalStepRunFailFast(t *testing.T) {
 	assert.EqualError(t, err, failedMsg("Create Leader 1"))
 }
 
-func TestParalStepRunFail(t *testing.T) {
+func TestParallelStepRunFail(t *testing.T) {
 	reqCtx := context.Background()
 	expErrStr := []string{
 		failedMsg("Create Leader 1"),
 		failedMsg("Create Leader 2"),
 	}
 
-	paralStep := setupParalStepFail()
+	parallelStep := setupParallelStepFail()
 	//does not work because S111 failed but S112 succeeded, so ctx and err channels both got values
 
 	var wg sync.WaitGroup
@@ -304,7 +304,7 @@ func TestParalStepRunFail(t *testing.T) {
 	bus := eventbus.New(logrus.New())
 
 	go func() {
-		_, err = paralStep.Run(reqCtx, bus)
+		_, err = parallelStep.Run(reqCtx, bus)
 		wg.Done()
 	}()
 
@@ -317,7 +317,7 @@ func TestParalStepRunFail(t *testing.T) {
 	}
 }
 
-func TestParalStepRunCancel(t *testing.T) {
+func TestParallelStepRunCancel(t *testing.T) {
 
 	expError := []string{
 		canceledMsg("Create Clusters"),
@@ -331,7 +331,7 @@ func TestParalStepRunCancel(t *testing.T) {
 	reqCtx, cancel := context.WithCancel(reqCtx)
 	defer cancel()
 
-	paralStep := setupParalStepSuccess()
+	parallelStep := setupParallelStepSuccess()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -340,7 +340,7 @@ func TestParalStepRunCancel(t *testing.T) {
 	bus := eventbus.New(logrus.New())
 
 	go func() {
-		reqCtx, err = paralStep.Run(reqCtx, bus)
+		reqCtx, err = parallelStep.Run(reqCtx, bus)
 		wg.Done()
 	}()
 

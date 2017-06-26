@@ -14,21 +14,21 @@ import (
 	"github.com/casualjim/rabbit/eventbus"
 )
 
-type ParalStep struct {
+type ParallelStep struct {
 	GenericStep
 }
 
-//NewParalStep creates a new parallel step whose substeps can be executed at the same time
+//NewParallelStep creates a new parallel step whose substeps can be executed at the same time
 //Note that the new Step should be of state StateWaiting, and all of its substeps should be of state StateWaiting too.
-func NewParalStep(stepInfo StepInfo,
+func NewParallelStep(stepInfo StepInfo,
 	log rabbit.Logger,
 	contextfn func([]context.Context) context.Context,
 	errorfn func([]error) error,
 	handlerFn func(eventbus.Event) error,
-	steps ...Step) *ParalStep {
+	steps ...Step) *ParallelStep {
 	//the caller is responsible to make sure stepOpts and all step's state are set to StateWaiting
 
-	s := &ParalStep{
+	s := &ParallelStep{
 		GenericStep: GenericStep{
 			StepInfo:       stepInfo,
 			Log:            Logger(log),
@@ -44,7 +44,7 @@ func NewParalStep(stepInfo StepInfo,
 	return s
 }
 
-func (s *ParalStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
+func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
 	s.State = StateProcessing
 
 	bus.Subscribe(s.eventHandler)
