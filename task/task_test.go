@@ -10,6 +10,7 @@ import (
 	"errors"
 	"log"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,18 +48,19 @@ func testFromContext(ctx context.Context) (testClusterRunTime, bool) {
 }
 
 /////////event//////
-var seenCancel int
+var seenCancel int64
+
+// var seenCancelL = new(sync.Mutex)
 
 func testEventHandlerFn(evt eventbus.Event) error {
-	lock := new(sync.Mutex)
-	lock.Lock()
+	// seenCancelL := new(sync.Mutex)
+	// seenCancelL.Lock()
 	//evts[0] = evt
 	switch evt.Args.(type) {
 	case clusterEvent:
-		seenCancel++
-		lock.Unlock()
+		atomic.AddInt64(&seenCancel, 1)
 	}
-
+	// seenCancelL.Unlock()
 	return nil
 }
 
@@ -119,7 +121,7 @@ func newTestUnitStep(stepInfo StepInfo, wait int, err string, role stepRole, fai
 }
 
 func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.Context, error) {
-	s.State = StateProcessing
+	s.SetState(StateProcessing)
 	runtime, _ := testFromContext(ctx)
 	timeout := time.Second * time.Duration(s.wait)
 
@@ -138,7 +140,7 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 				}
 			}
 			ctxc <- testNewContext(ctx, runtime)
-			log.Printf("step %s execute..finished waiting.\n", s.Name)
+			log.Printf("step %s execute..finished waiting.\n", s.GetName())
 			wg1.Done()
 			return
 		}
@@ -150,16 +152,16 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 	go func() {
 		select {
 		case <-ctx.Done():
-			canceledErr = errors.New(canceledMsg(s.Name))
+			canceledErr = errors.New(canceledMsg(s.GetName()))
 			bus.Publish(
 				newClusterEvent(
 					"ClusterEvent",
 					clusterEvent{
 						Name:     "Cluster 1",
-						StepName: s.Name,
+						StepName: s.GetName(),
 						Status:   string(StateCanceled),
 					}))
-			log.Printf("step %s canceled \n", s.Name)
+			log.Printf("step %s canceled \n", s.GetName())
 			wg2.Done()
 			return
 		case <-time.After(timeout):
@@ -182,21 +184,21 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 	wg2.Wait()
 	wg3.Wait()
 	close(ctxc)
-	log.Printf("step %s finished waiting, Proccessing result\n", s.Name)
+	log.Printf("step %s finished waiting, Proccessing result\n", s.GetName())
 
 	if canceledErr != nil {
-		s.State = StateCanceled
-		log.Printf("step %s returning from cancel: %s\n", s.Name, canceledErr)
+		s.SetState(StateCanceled)
+		log.Printf("step %s returning from cancel: %s\n", s.GetName(), canceledErr)
 		return ctx, canceledErr
 	}
 
 	if s.fail {
-		s.State = StateFailed
-		log.Printf("step %s failed\n", s.Name)
-		return ctx, errors.New(failedMsg(s.Name))
+		s.SetState(StateFailed)
+		log.Printf("step %s failed\n", s.GetName())
+		return ctx, errors.New(failedMsg(s.GetName()))
 	}
 
-	s.State = StateCompleted
+	s.SetState(StateCompleted)
 	return newCtx, nil
 
 }

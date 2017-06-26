@@ -30,7 +30,7 @@ func NewParallelStep(stepInfo StepInfo,
 
 	s := &ParallelStep{
 		GenericStep: GenericStep{
-			StepInfo:       stepInfo,
+			info:           stepInfo,
 			Log:            Logger(log),
 			contextHandler: NewContextHandler(contextfn),
 			errorHandler:   NewErrorHandler(errorfn),
@@ -45,13 +45,14 @@ func NewParallelStep(stepInfo StepInfo,
 }
 
 func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
-	s.State = StateProcessing
+	s.SetState(StateProcessing)
 
 	bus.Subscribe(s.eventHandler)
 
 	var runError error
 	var resultCtx context.Context
 	var resultErr error
+	ceL := new(sync.Mutex)
 	var cancelErr error
 	ctxc := make(chan context.Context)
 	errc := make(chan error)
@@ -89,8 +90,10 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 	go func() {
 		select {
 		case <-reqCtx.Done():
-			cancelErr = errors.New("step " + s.Name + " canceled")
-			s.Log.Printf("step %s got canceled", s.Name)
+			ceL.Lock()
+			cancelErr = errors.New("step " + s.GetName() + " canceled")
+			ceL.Unlock()
+			s.Log.Printf("step %s got canceled", s.GetName())
 		}
 
 	}()
@@ -117,8 +120,12 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 	wgCtx.Wait()
 	wgErr.Wait()
 
+	ceL.Lock()
+	ce := cancelErr
+	ceL.Unlock()
+
 	var errs []error
-	if cancelErr != nil {
+	if ce != nil {
 		if resultErr != nil {
 			errs = append(errs, resultErr)
 		}
@@ -131,7 +138,7 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 		}
 		runError = s.errorHandler(errs)
 
-		s.Log.Printf("step %s canceled. %s", s.Name, runError)
+		s.Log.Printf("step %s canceled. %s", s.GetName(), runError)
 		return reqCtx, runError
 
 	} else if resultErr != nil {
@@ -139,7 +146,7 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 		runError = s.errorHandler(errs)
 		s.Fail(reqCtx, runError)
 
-		s.Log.Printf("step %s failed, %s", s.Name, runError.Error())
+		s.Log.Printf("step %s failed, %s", s.GetName(), runError.Error())
 		return reqCtx, runError
 
 	} else if resultCtx != nil {

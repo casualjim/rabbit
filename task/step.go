@@ -7,6 +7,7 @@ package task
 
 import (
 	"context"
+	"sync"
 
 	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
@@ -31,7 +32,8 @@ type Step interface {
 
 //GenericStep is a generic Step
 type GenericStep struct {
-	StepInfo
+	info  StepInfo
+	infoL sync.Mutex
 	Steps []Step
 	Log   rabbit.Logger
 
@@ -53,9 +55,9 @@ func NewStepInfo(name string) StepInfo {
 
 func NewGenericStep(stepInfo StepInfo, log rabbit.Logger, steps ...Step) *GenericStep {
 	return &GenericStep{
-		StepInfo: stepInfo,
-		Log:      Logger(log),
-		Steps:    steps,
+		info:  stepInfo,
+		Log:   Logger(log),
+		Steps: steps,
 	}
 }
 
@@ -73,7 +75,10 @@ func (s *GenericStep) Rollback(reqCtx context.Context, bus eventbus.EventBus) (c
 }
 
 func (s *GenericStep) GetInfo() StepInfo {
-	return s.StepInfo
+	s.infoL.Lock()
+	inf := s.info
+	s.infoL.Unlock()
+	return inf
 }
 
 func (s *GenericStep) GetSteps() []Step {
@@ -81,7 +86,23 @@ func (s *GenericStep) GetSteps() []Step {
 }
 
 func (s *GenericStep) SetState(state State) {
-	s.State = state
+	s.infoL.Lock()
+	s.info.State = state
+	s.infoL.Unlock()
+}
+
+func (s *GenericStep) GetName() string {
+	s.infoL.Lock()
+	nm := s.info.Name
+	s.infoL.Unlock()
+	return nm
+}
+
+func (s *GenericStep) GetState() State {
+	s.infoL.Lock()
+	nm := s.info.State
+	s.infoL.Unlock()
+	return nm
 }
 
 func (s *GenericStep) SetSuccessFn(fn func(context.Context, Step)) {

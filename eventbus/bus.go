@@ -40,7 +40,6 @@ func (h *defaultHandler) On(event Event) error {
 func newSubscription(handler EventHandler, errorHandler func(error)) *eventSubcription {
 	return &eventSubcription{
 		handler: handler,
-		once:    new(sync.Once),
 		onError: errorHandler,
 	}
 }
@@ -48,27 +47,32 @@ func newSubscription(handler EventHandler, errorHandler func(error)) *eventSubcr
 type eventSubcription struct {
 	listener chan Event
 	handler  EventHandler
-	once     *sync.Once
+	once     sync.Once
 	onError  func(error)
+	lck      sync.Mutex
 }
 
 func (e *eventSubcription) Listen() {
 	e.once.Do(func() {
 		e.listener = make(chan Event)
 		go func() {
+			e.lck.Lock()
 			for evt := range e.listener {
 				if err := e.handler.On(evt); err != nil {
 					e.onError(err)
 				}
 			}
+			e.lck.Unlock()
 		}()
 	})
 }
 
 func (e *eventSubcription) Stop() {
 	close(e.listener)
+	e.lck.Lock()
 	e.listener = nil
-	e.once = new(sync.Once)
+	e.once = sync.Once{}
+	e.lck.Unlock()
 }
 
 func (e *eventSubcription) Matches(handler EventHandler) bool {

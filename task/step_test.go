@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -129,7 +130,7 @@ func TestSeqStepRunFail(t *testing.T) {
 	reqCtx, err := seqStep.Run(reqCtx, bus)
 
 	//check the value is passed through context
-	assert.Equal(t, seqStep.State, StateFailed)
+	assert.Equal(t, seqStep.GetState(), StateFailed)
 	assert.Error(t, err)
 	assert.EqualError(t, err, failedMsg("create leader 1"))
 }
@@ -150,7 +151,7 @@ func TestSeqStepRunSuccess(t *testing.T) {
 	assert.Equal(t, runtimeresult.LeaderIP[0], "10.0.0.1")
 	assert.Equal(t, runtimeresult.LeaderIP[1], "10.0.0.2")
 
-	assert.Equal(t, seqStep.State, StateCompleted)
+	assert.Equal(t, seqStep.GetState(), StateCompleted)
 	stepsCompleted := FindSteps(seqStep, func(s Step) bool {
 		if s.GetInfo().State == StateCompleted {
 			return true
@@ -357,5 +358,5 @@ func TestParallelStepRunCancel(t *testing.T) {
 	}
 	//we only set the root step to processing the cancel event, so only expect to see 2 here
 	//one for "Create Leader 1", one for "Create Leader 2"
-	assert.Equal(t, seenCancel, 2)
+	assert.EqualValues(t, atomic.LoadInt64(&seenCancel), 2)
 }

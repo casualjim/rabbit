@@ -25,6 +25,7 @@ type Task struct {
 	Name     string          `json:"name,omitempty"`
 	TaskStep Step            `json:"taskstep,omitempty"`
 
+	stepLck      sync.Mutex
 	ctx          context.Context
 	log          rabbit.Logger
 	eventBus     eventbus.EventBus
@@ -55,13 +56,13 @@ type TaskType string
 type TaskID string
 
 type TaskOpts struct {
-	Type      TaskType        `json:"type,omitempty"`
-	Ctx       context.Context `json:"-"`
-	SuccessFn func(*Task)
-	FailFn    func(*Task, error)
-	HandlerFn func(eventbus.Event) error
-	ErrorFn   func([]error) error
-	Log       rabbit.Logger
+	Type      TaskType                   `json:"type,omitempty"`
+	Ctx       context.Context            `json:"-"`
+	SuccessFn func(*Task)                `json:"-"`
+	FailFn    func(*Task, error)         `json:"-"`
+	HandlerFn func(eventbus.Event) error `json:"-"`
+	ErrorFn   func([]error) error        `json:"-"`
+	Log       rabbit.Logger              `json:"-"`
 }
 
 func NewTask(taskOpts TaskOpts, step Step) (*Task, error) {
@@ -125,6 +126,8 @@ func (t *Task) Rollback() error {
 
 //CheckStatus gives the state of the task's step
 func (t *Task) CheckStatus() State {
+	t.stepLck.Lock()
+	defer t.stepLck.Unlock()
 	info := t.TaskStep.GetInfo()
 	if info.State == StateWaiting {
 		return StateCreated

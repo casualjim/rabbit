@@ -30,7 +30,7 @@ func NewSeqStep(stepInfo StepInfo,
 
 	s := &SeqStep{
 		GenericStep: GenericStep{
-			StepInfo:       stepInfo,
+			info:           stepInfo,
 			Log:            Logger(log),
 			contextHandler: NewContextHandler(contextfn),
 			errorHandler:   NewErrorHandler(errorfn),
@@ -63,8 +63,8 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 			reqCtx, err = step.Run(reqCtx, bus)
 			select {
 			case <-reqCtx.Done():
-				s.Log.Printf("step %s got canceled", s.Name)
-				cancelErr := errors.New("step " + s.Name + " canceled")
+				s.Log.Printf("step %s got canceled", s.GetName())
+				cancelErr := errors.New("step " + s.GetName() + " canceled")
 				step.SetState(StateCanceled)
 				_, rollbackErr := s.Rollback(reqCtx, bus)
 				err = s.errorHandler([]error{err, cancelErr, rollbackErr})
@@ -83,7 +83,7 @@ func (s *SeqStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Co
 	wg.Wait()
 	if err != nil {
 		s.Fail(reqCtx, err)
-		s.Log.Printf("step %s failed, %s", s.Name, err.Error())
+		s.Log.Printf("step %s failed, %s", s.GetName(), err.Error())
 		return reqCtx, err
 	}
 	s.Success(reqCtx)
