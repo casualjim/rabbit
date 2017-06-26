@@ -161,7 +161,7 @@ func (t *Task) Fail(err error) {
 	t.eventBus.Close()
 }
 
-//Create a default error handler in case not specified. just put the errors together
+// NewErrorHandler creates a default error handler in case not specified. just put the errors together
 func NewErrorHandler(errFn func([]error) error) func(errs []error) error {
 	if errFn == nil {
 		return func(errs []error) error {
