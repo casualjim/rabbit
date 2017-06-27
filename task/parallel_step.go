@@ -8,10 +8,10 @@ package task
 import (
 	"context"
 	"errors"
-	"sync"
 
 	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
+	"github.com/casualjim/rabbit/workerGroup"
 )
 
 type ParallelStep struct {
@@ -46,49 +46,13 @@ func NewParallelStep(stepInfo StepInfo,
 
 func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
 	s.SetState(StateProcessing)
-
 	bus.Subscribe(s.eventHandler)
 
-	var runError error
-	var resultCtx context.Context
-	var resultErr error
+	wkg := workerGroup.NewWorkerGroup()
+	ctxc := wkg.MakeSink() // chan context used by substeps
+	errc := wkg.MakeSink() // chan error used by substeps
+
 	var cancelErr error
-	ctxc := make(chan context.Context)
-	errc := make(chan error)
-
-	var wgService sync.WaitGroup
-
-	// Start a background goroutine for handling substep passed ctxs
-	wgService.Add(1)
-	go func(reqCtx context.Context) {
-		getCtx := false
-
-		ctxs := []context.Context{reqCtx}
-		for r := range ctxc {
-			ctxs = append(ctxs, r)
-			getCtx = true
-		}
-		if getCtx {
-			resultCtx = s.contextHandler(ctxs)
-		}
-		wgService.Done()
-	}(reqCtx)
-
-	// Start a background goroutine for handling substep passed errors
-	wgService.Add(1)
-	go func() {
-		var stepErrors []error
-
-		for e := range errc {
-			stepErrors = append(stepErrors, e)
-		}
-		if stepErrors != nil {
-			resultErr = s.errorHandler(stepErrors)
-		}
-		wgService.Done()
-	}()
-
-	var wgSubSteps sync.WaitGroup
 
 OuterLoop:
 	for _, step := range s.Steps {
@@ -101,7 +65,7 @@ OuterLoop:
 			break OuterLoop
 		default:
 		}
-		wgSubSteps.Add(1)
+		wkg.Add(1)
 		go func(step Step, ctx context.Context) {
 			ctx, err := step.Run(ctx, bus)
 			if err != nil {
@@ -109,19 +73,40 @@ OuterLoop:
 			} else {
 				ctxc <- ctx
 			}
-			wgSubSteps.Done()
+			wkg.Done()
 		}(step, ctx)
 	}
 
-	wgSubSteps.Wait()
+	wkg.Wait()
 
-	// After wgSubSteps.Wait() returned, all workers have returned, so it's safe to
-	// close ctxc and errc here. Thus goroutines which are ranging on these
-	// channels will safely return
-	close(ctxc)
-	close(errc)
+	// Handling contexts passed by substeps
+	var resultCtx context.Context
 
-	wgService.Wait()
+	ctxs := []context.Context{reqCtx}
+	ctxsTmp := wkg.Fetch(ctxc)
+	for _, ctx := range ctxsTmp {
+		if c, ok := ctx.(context.Context); ok {
+			ctxs = append(ctxs, c)
+		}
+	}
+	if len(ctxs) > 1 {
+		resultCtx = s.contextHandler(ctxs)
+	}
+
+	// Handling errors passed by substeps
+	var runError error
+	var resultErr error
+
+	var stepErrors []error
+	stepErrorsTmp := wkg.Fetch(errc)
+	for _, stepError := range stepErrorsTmp {
+		if e, ok := stepError.(error); ok {
+			stepErrors = append(stepErrors, e)
+		}
+	}
+	if stepErrors != nil {
+		resultErr = s.errorHandler(stepErrors)
+	}
 
 	var errs []error
 	if cancelErr != nil {
