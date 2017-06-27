@@ -8,10 +8,10 @@ package task
 import (
 	"context"
 	"errors"
-	"sync"
 
 	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
+	"github.com/casualjim/rabbit/workerGroup"
 )
 
 type ParallelStep struct {
@@ -46,62 +46,26 @@ func NewParallelStep(stepInfo StepInfo,
 
 func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (context.Context, error) {
 	s.SetState(StateProcessing)
-
 	bus.Subscribe(s.eventHandler)
 
-	var runError error
-	var resultCtx context.Context
-	var resultErr error
-	ceL := new(sync.Mutex)
+	wkg := workerGroup.NewWorkerGroup()
+	ctxc := wkg.MakeSink() // chan context used by substeps
+	errc := wkg.MakeSink() // chan error used by substeps
+
 	var cancelErr error
-	ctxc := make(chan context.Context)
-	errc := make(chan error)
 
-	var wgCtx sync.WaitGroup
-	wgCtx.Add(1)
-	go func(reqCtx context.Context) {
-		getCtx := false
-
-		ctxs := []context.Context{reqCtx}
-		for r := range ctxc {
-			ctxs = append(ctxs, r)
-			getCtx = true
-		}
-		if getCtx {
-			resultCtx = s.contextHandler(ctxs)
-		}
-		wgCtx.Done()
-	}(reqCtx)
-
-	var wgErr sync.WaitGroup
-	wgErr.Add(1)
-	go func() {
-		var stepErrors []error
-
-		for e := range errc {
-			stepErrors = append(stepErrors, e)
-		}
-		if stepErrors != nil {
-			resultErr = s.errorHandler(stepErrors)
-		}
-		wgErr.Done()
-	}()
-
-	go func() {
-		select {
-		case <-reqCtx.Done():
-			ceL.Lock()
-			cancelErr = errors.New("step " + s.GetName() + " canceled")
-			ceL.Unlock()
-			s.Log.Printf("step %s got canceled", s.GetName())
-		}
-
-	}()
-
-	var wgCancel sync.WaitGroup
-	wgCancel.Add(len(s.Steps))
+OuterLoop:
 	for _, step := range s.Steps {
 		ctx := reqCtx
+		// Before we run every step, check whether root step is canceled already
+		select {
+		case <-ctx.Done():
+			cancelErr = errors.New("step " + s.GetName() + " canceled")
+			s.Log.Printf("step %s got canceled", s.GetName())
+			break OuterLoop
+		default:
+		}
+		wkg.Add(1)
 		go func(step Step, ctx context.Context) {
 			ctx, err := step.Run(ctx, bus)
 			if err != nil {
@@ -109,23 +73,43 @@ func (s *ParallelStep) Run(reqCtx context.Context, bus eventbus.EventBus) (conte
 			} else {
 				ctxc <- ctx
 			}
-			wgCancel.Done()
+			wkg.Done()
 		}(step, ctx)
 	}
 
-	wgCancel.Wait()
-	close(ctxc)
-	close(errc)
+	wkg.Wait()
 
-	wgCtx.Wait()
-	wgErr.Wait()
+	// Handling contexts passed by substeps
+	var resultCtx context.Context
 
-	ceL.Lock()
-	ce := cancelErr
-	ceL.Unlock()
+	ctxs := []context.Context{reqCtx}
+	ctxsTmp := wkg.Fetch(ctxc)
+	for _, ctx := range ctxsTmp {
+		if c, ok := ctx.(context.Context); ok {
+			ctxs = append(ctxs, c)
+		}
+	}
+	if len(ctxs) > 1 {
+		resultCtx = s.contextHandler(ctxs)
+	}
+
+	// Handling errors passed by substeps
+	var runError error
+	var resultErr error
+
+	var stepErrors []error
+	stepErrorsTmp := wkg.Fetch(errc)
+	for _, stepError := range stepErrorsTmp {
+		if e, ok := stepError.(error); ok {
+			stepErrors = append(stepErrors, e)
+		}
+	}
+	if stepErrors != nil {
+		resultErr = s.errorHandler(stepErrors)
+	}
 
 	var errs []error
-	if ce != nil {
+	if cancelErr != nil {
 		if resultErr != nil {
 			errs = append(errs, resultErr)
 		}
