@@ -35,7 +35,7 @@ type GenericStep struct {
 	info  StepInfo
 	infoL sync.Mutex
 	Steps []Step
-	Log   rabbit.Logger
+	log   rabbit.Logger
 
 	//contextHandler handles the returned contexts from substeps, for example combines some values carried in those contexts
 	contextHandler func([]context.Context) context.Context
@@ -56,7 +56,7 @@ func NewStepInfo(name string) StepInfo {
 func NewGenericStep(stepInfo StepInfo, log rabbit.Logger, steps ...Step) *GenericStep {
 	return &GenericStep{
 		info:  stepInfo,
-		Log:   Logger(log),
+		log:   Logger(log),
 		Steps: steps,
 	}
 }
@@ -126,7 +126,7 @@ func (s *GenericStep) SetEventHandler(fn func(eventbus.Event) error) {
 }
 
 func (s *GenericStep) SetLogger(log rabbit.Logger) {
-	s.Log = log
+	s.log = log
 }
 
 func (s *GenericStep) Success(reqCtx context.Context) {
