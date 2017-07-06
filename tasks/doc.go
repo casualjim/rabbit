@@ -185,12 +185,12 @@ func (c *concStep) Run(ctx context.Context) (context.Context, error) {
 
 	for i, step := range c.steps {
 		wg.Add(1)
-		go func(i int) {
+		go func(ctx context.Context, i int) {
 			cx, err := step.Run(ctx)
 			merge <- result{cx, err, i}
-			atomic.SwapUint64(&c.idx, atomic.LoadUint64(&c.idx)<<uint64(i))
+			atomic.SwapUint64(&c.idx, atomic.LoadUint64(&c.idx)|uint64(i))
 			wg.Done()
-		}(i)
+		}(ctx, i)
 	}
 
 	go func() {
@@ -210,6 +210,19 @@ func (c *concStep) Run(ctx context.Context) (context.Context, error) {
 	<-results
 	return ctx, nil
 }
+
 func (c *concStep) Rollback(ctx context.Context) (context.Context, error) {
+	idx := atomic.LoadUint64(&c.idx)
+
+	for i := range c.steps {
+		if idx&uint64(i) == 0 {
+			continue
+		}
+		step := c.steps[i]
+		_, err := step.Rollback(ctx)
+		if err != nil {
+			continue
+		}
+	}
 	return ctx, nil
 }
