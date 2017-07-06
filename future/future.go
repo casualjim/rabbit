@@ -41,6 +41,14 @@ func ThenFunc(fn func(Value) (Value, error)) func(context.Context, Value) (Value
 	}
 }
 
+// ElseFunc wraps an error handler continuation with a context handling function
+func ElseFunc(fn func(error) (Value, error)) func(context.Context, error) (Value, context.Context, error) {
+	return func(ctx context.Context, err error) (Value, context.Context, error) {
+		v, e := fn(err)
+		return v, ctx, e
+	}
+}
+
 // Do creates a future that executes the function in a go routine
 // The context that is passed into the function will provide a cancellation signal
 func Do(fn func(context.Context) (Value, context.Context, error)) Future {

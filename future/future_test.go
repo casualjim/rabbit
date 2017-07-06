@@ -290,3 +290,62 @@ func TestThen_Cancel(t *testing.T) {
 	assert.EqualValues(t, 1, atomic.LoadInt64(&count))
 
 }
+
+func TestOrElse(t *testing.T) {
+	f := future.Do(future.Func(func() (future.Value, error) {
+		return nil, errors.New("transient")
+	})).OrElse(future.ElseFunc(func(i error) (future.Value, error) {
+		return 20, nil
+	}))
+
+	result, ctx, err := f.Get()
+	require.NoError(t, err)
+	assert.Equal(t, 20, result)
+	assert.NotNil(t, ctx)
+
+	exp := errors.New("expected")
+	g := future.Do(future.Func(func() (future.Value, error) {
+		return nil, exp
+	})).OrElse(future.ElseFunc(func(i error) (future.Value, error) {
+		return 21, nil
+	})).OrElse(future.ElseFunc(func(i error) (future.Value, error) {
+		return 22, nil // should not execute because previous is success
+	}))
+
+	result, ctx, err = g.Get()
+	require.NoError(t, err)
+	assert.Equal(t, 21, result)
+	assert.NotNil(t, ctx)
+
+}
+func TestOrElse_Cancel(t *testing.T) {
+	var count int64
+	f := future.Do(func(ctx context.Context) (future.Value, context.Context, error) {
+		atomic.AddInt64(&count, 1)
+		select {
+		case <-ctx.Done():
+			return nil, ctx, ctx.Err()
+		case <-time.After(1 * time.Second):
+			return 10, ctx, nil
+		}
+	}).OrElse(func(ctx context.Context, err error) (future.Value, context.Context, error) {
+		atomic.AddInt64(&count, 1)
+		select {
+		case <-ctx.Done():
+			return nil, ctx, ctx.Err()
+		case <-time.After(1 * time.Second):
+			return 20, ctx, nil
+		}
+	})
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		f.Cancel()
+	}()
+
+	result, _, err := f.Get()
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.EqualValues(t, 1, atomic.LoadInt64(&count))
+
+}
