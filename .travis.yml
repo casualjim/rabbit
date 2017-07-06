@@ -11,5 +11,6 @@ install:
 - go get -u github.com/pborman/uuid
 script:
 - .travis/coverage
+- go test -run '^TestCancelConc$' ./future 
 after_success:
 - bash <(curl -s https://codecov.io/bash)

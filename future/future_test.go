@@ -3,7 +3,6 @@ package future_test
 import (
 	"context"
 	"errors"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -218,33 +217,6 @@ func TestGet_CancelReachesFunc(t *testing.T) {
 			assert.Fail(t, "expected a message from function in future")
 		}
 	}
-}
-
-func TestCancelConc(t *testing.T) {
-	loop := func() {
-		const N = 8000
-		start := make(chan int)
-		var done sync.WaitGroup
-		done.Add(N)
-		f := future.Do(future.Func(func() (future.Value, error) {
-			select {} //block
-			return 1, nil
-		}))
-		for i := 0; i < N; i++ {
-			go func() {
-				defer done.Done()
-				<-start
-				f.Cancel()
-			}()
-		}
-		close(start)
-		done.Wait()
-	}
-
-	for i := 0; i < 500; i++ {
-		loop()
-	}
-
 }
 
 func TestThen(t *testing.T) {
