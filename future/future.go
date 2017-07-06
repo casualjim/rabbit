@@ -20,8 +20,7 @@ type result struct {
 // This is loosely based on this paper: http://www.home.hs-karlsruhe.de/~suma0002/publications/events-to-futures.pdf
 type Future interface {
 	AndThen(func(context.Context, Value) (Value, context.Context, error)) Future
-	// TODO: add OrElse implementation
-	// OrElse(func(context.Context, error) (Value, context.Context, error)) Future
+	OrElse(func(context.Context, error) (Value, context.Context, error)) Future
 	Get() (Value, context.Context, error)
 	Cancel()
 }
@@ -118,6 +117,41 @@ func (f *future) AndThen(fn func(context.Context, Value) (Value, context.Context
 			c <- result{Value: v, Ctx: ctx, Err: f.ctx.Err()}
 		default:
 			vv, ctx2, e2 := fn(ctx, v)
+			c <- result{Value: vv, Ctx: ctx2, Err: e2}
+		}
+
+	}()
+	return &future{
+		C:      c,
+		cancel: f.cancel,
+		ctx:    f.ctx,
+		once:   new(sync.Once),
+	}
+}
+
+func (f *future) OrElse(fn func(context.Context, error) (Value, context.Context, error)) Future {
+	c := make(chan result, 1)
+	go func() {
+		defer close(c)
+
+		v, ctx, e := f.Get()
+		if e == nil { // on error we fail here
+			c <- result{Value: v, Ctx: ctx}
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			c <- result{Value: v, Ctx: ctx, Err: ctx.Err()}
+			select {
+			case <-f.ctx.Done():
+			default:
+				f.cancel() // ensure closed if out of scope
+			}
+		case <-f.ctx.Done():
+			c <- result{Value: v, Ctx: ctx, Err: f.ctx.Err()}
+		default:
+			vv, ctx2, e2 := fn(ctx, e)
 			c <- result{Value: vv, Ctx: ctx2, Err: e2}
 		}
 

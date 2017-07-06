@@ -182,7 +182,7 @@ func NewErrorHandler(errFn func([]error) error) func(errs []error) error {
 	return errFn
 }
 
-//create a default context handler in case not specified. just return the first context
+//NewContextHandler creates a default context handler in case not specified. just return the first context
 func NewContextHandler(ctxfn func([]context.Context) context.Context) func([]context.Context) context.Context {
 	if ctxfn == nil {
 		return func(ctxs []context.Context) context.Context {
