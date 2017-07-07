@@ -11,6 +11,7 @@ import (
 )
 
 func failFn(c context.Context) (context.Context, error) { return c, assert.AnError }
+func noopFn(c context.Context) (context.Context, error) { return c, nil }
 
 func failRun() *countingStep {
 	return stepRun(failFn)
