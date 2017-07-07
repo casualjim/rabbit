@@ -1,4 +1,4 @@
-package step_test
+package steps_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/casualjim/rabbit/tasks/rollback"
-	"github.com/casualjim/rabbit/tasks/step"
+	"github.com/casualjim/rabbit/tasks/steps"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,7 +56,7 @@ func TestExecutor_Run(t *testing.T) {
 	ctx := context.Background()
 	rs := &countingStep{}
 
-	cx, err := step.WithContext(ctx).Should(rollback.Always).Run(rs)
+	cx, err := steps.WithContext(ctx).Should(rollback.Always).Run(rs)
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
 		assert.Equal(t, 1, rs.Runs())
@@ -68,7 +68,7 @@ func TestExecutor_Rollback(t *testing.T) {
 	ctx := context.Background()
 	rs := failRun()
 
-	cx, err := step.WithContext(ctx).Should(rollback.Always).Run(rs)
+	cx, err := steps.WithContext(ctx).Should(rollback.Always).Run(rs)
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
 		assert.Equal(t, 1, rs.Runs())

@@ -1,4 +1,4 @@
-package step
+package steps
 
 import (
 	"context"
@@ -11,14 +11,9 @@ var Zero Step
 func noop(c context.Context) (context.Context, error) { return c, nil }
 
 func init() {
+	// eagerly create this one
 	Zero = Stateless(Run(noop), Rollback(noop))
 }
-
-// Run handler for a step
-type Run func(context.Context) (context.Context, error)
-
-// Rollback handler for a step
-type Rollback func(context.Context) (context.Context, error)
 
 // StatelessAtomic step only 1 invocation of the methods happens at any given time
 // the functions are guarded by a mutex

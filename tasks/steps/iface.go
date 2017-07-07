@@ -1,4 +1,4 @@
-package step
+package steps
 
 import "context"
 
@@ -20,3 +20,12 @@ type Step interface {
 	Run(context.Context) (context.Context, error)
 	Rollback(context.Context) (context.Context, error)
 }
+
+// Run handler for a step
+type Run func(context.Context) (context.Context, error)
+
+// Rollback handler for a step
+type Rollback func(context.Context) (context.Context, error)
+
+// Predicate for branching execution left or right
+type Predicate func(context.Context) bool
