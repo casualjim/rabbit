@@ -30,10 +30,10 @@ func (s *pipelineStep) Run(ctx context.Context) (context.Context, error) {
 	var err error
 	for i, step := range s.steps {
 		ctx, err = step.Run(ctx)
+		s.idx = i
 		if err != nil {
 			break
 		}
-		s.idx = i
 		select {
 		case <-ctx.Done():
 			//we're done, bail
