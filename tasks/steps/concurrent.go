@@ -17,6 +17,7 @@ type concStep struct {
 	steps []Step
 	idx   uint64
 }
+
 type concres struct {
 	ctx context.Context
 	err error
@@ -33,8 +34,14 @@ func (c *concStep) Run(ctx context.Context) (context.Context, error) {
 		wg.Add(1)
 		go func(ctx context.Context, i int, step Step) {
 			cx, err := step.Run(ctx)
+			for {
+				ov := atomic.LoadUint64(&c.idx)
+				nv := ov | uint64(i)
+				if atomic.CompareAndSwapUint64(&c.idx, ov, nv) {
+					break
+				}
+			}
 			merge <- concres{cx, err, i}
-			atomic.SwapUint64(&c.idx, atomic.LoadUint64(&c.idx)|uint64(i))
 			wg.Done()
 		}(ctx, i, step)
 	}
