@@ -14,6 +14,7 @@ func TestPipeline(t *testing.T) {
 
 	ctx, err := steps.WithContext(context.Background()).Run(
 		steps.Pipeline(
+			"pipeline-1",
 			step,
 			step,
 			step,
@@ -27,9 +28,10 @@ func TestPipeline(t *testing.T) {
 	}
 
 	step = &countingStep{}
-	stepFail := failRun()
+	stepFail := failRun("pipeline-fail")
 	ctx, err = steps.WithContext(context.Background()).Run(
 		steps.Pipeline(
+			"pipeline-2",
 			step,
 			step,
 			stepFail,
@@ -47,12 +49,13 @@ func TestPipeline(t *testing.T) {
 }
 
 func TestPipeline_Cancelled(t *testing.T) {
-	step := &countingStep{}
+	step := &countingStep{StepName: steps.StepName("pipeline-cancelled-1")}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	ctx2, err := steps.WithContext(ctx).Run(
 		steps.Pipeline(
+			"pipeline-cancel-1",
 			step,
 			step,
 			step,
@@ -67,14 +70,16 @@ func TestPipeline_Cancelled(t *testing.T) {
 	}
 
 	ctx3, cancel2 := context.WithCancel(context.Background())
-	runStep := &countingStep{}
+	runStep := &countingStep{StepName: steps.StepName("pipeline-cancelled-run-1")}
 	cancelStep := &countingStep{
+		StepName: steps.StepName("pipeline-cancelled-cancel-1"),
 		run: func(c context.Context) (context.Context, error) {
 			cancel2()
 			return c, nil
 		},
 	}
 	rbFailStep := &countingStep{
+		StepName: steps.StepName("pipeline-cancelled-rollback-1"),
 		rollback: func(c context.Context) (context.Context, error) {
 			return c, errors.New("expected")
 		},
@@ -82,6 +87,7 @@ func TestPipeline_Cancelled(t *testing.T) {
 
 	ctx4, err2 := steps.WithContext(ctx3).Run(
 		steps.Pipeline(
+			"pipeline-cancel-2",
 			runStep,
 			rbFailStep,
 			cancelStep,

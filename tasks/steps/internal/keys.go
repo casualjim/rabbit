@@ -13,8 +13,12 @@ const (
 	PublisherKey StepKey = iota
 	// LoggerKey for the log entry in the context
 	LoggerKey
-	// ParentPathKey for the name of the parent
-	ParentPathKey
+	// ParentNameKey for the name of the parent
+	ParentNameKey
+	// TaskNameKey for the name of the task
+	TaskNameKey
+	// StepNameKey for the name of the step (full path)
+	StepNameKey
 
 	// TestThrottle is only use for testing
 	testThrottleKey StepKey = 255

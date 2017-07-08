@@ -8,10 +8,10 @@ package task
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 	"github.com/go-openapi/strfmt"
@@ -96,7 +96,7 @@ func (t *Task) Run() error {
 
 		select {
 		case <-t.ctx.Done():
-			t.log.Printf("task %s got canceled", t.Name)
+			t.log.Infof("task %s got canceled", t.Name)
 			rollbackErr := t.Rollback()
 			runErr = t.errorHandler([]error{err, rollbackErr})
 			wg.Done()
@@ -110,10 +110,10 @@ func (t *Task) Run() error {
 	wg.Wait()
 
 	if runErr == nil {
-		t.log.Printf("task %s succeeded", t.Name)
+		t.log.Infof("task %s succeeded", t.Name)
 		t.Success()
 	} else {
-		t.log.Printf("task %s failed, %s", t.Name, runErr.Error())
+		t.log.Infof("task %s failed, %s", t.Name, runErr.Error())
 		t.Fail(runErr)
 	}
 
@@ -205,7 +205,7 @@ func NewEventHandler(evtfn func(eventbus.Event) error) eventbus.EventHandler {
 
 func Logger(log rabbit.Logger) rabbit.Logger {
 	if log == nil {
-		return logrus.New()
+		return rabbit.GoLog(os.Stderr, "", 0)
 	}
 	return log
 }

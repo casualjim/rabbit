@@ -11,6 +11,11 @@ import "github.com/stretchr/testify/assert"
 
 type tk string
 
+func TestStepName(t *testing.T) {
+	sn := steps.StepName("the name")
+	assert.Equal(t, "the name", sn.Name())
+}
+
 func TestZeroStep(t *testing.T) {
 	st := steps.Zero
 	ctx, err := st.Run(nil)
@@ -24,6 +29,7 @@ func TestZeroStep(t *testing.T) {
 
 func TestSimpleStep_Run(t *testing.T) {
 	st := steps.Stateless(
+		"simple-run-1",
 		steps.Run(func(c context.Context) (context.Context, error) {
 			return context.WithValue(c, tk("something"), "the value"), nil
 		}),
@@ -35,18 +41,18 @@ func TestSimpleStep_Run(t *testing.T) {
 		assert.Equal(t, "the value", c.Value(tk("something")))
 	}
 
-	c2, e2 := steps.Stateless(nil, nil).Run(c)
+	c2, e2 := steps.Stateless("simple-run-2", nil, nil).Run(c)
 	if assert.NoError(t, e2) {
 		assert.Equal(t, c, c2)
 	}
 }
 
 func TestSimpleStep_Rollback(t *testing.T) {
-	st := steps.Stateless(failFn, noopFn)
+	st := steps.Stateless("simple-rb-1", failFn, noopFn)
 	c, e := steps.WithContext(context.Background()).Run(st)
 	require.NoError(t, e)
 
-	c2, e2 := steps.WithContext(context.Background()).Run(steps.Stateless(failFn, nil))
+	c2, e2 := steps.WithContext(context.Background()).Run(steps.Stateless("simple-rb-2", failFn, nil))
 	if assert.NoError(t, e2) {
 		assert.Equal(t, c, c2)
 	}
@@ -54,6 +60,7 @@ func TestSimpleStep_Rollback(t *testing.T) {
 
 func TestAtomicStep_Run(t *testing.T) {
 	st := steps.StatelessAtomic(
+		"atomic-run-1",
 		steps.Run(func(c context.Context) (context.Context, error) {
 			return context.WithValue(c, tk("something"), "the value"), nil
 		}),
@@ -65,18 +72,18 @@ func TestAtomicStep_Run(t *testing.T) {
 		assert.Equal(t, "the value", c.Value(tk("something")))
 	}
 
-	c2, e2 := steps.StatelessAtomic(nil, nil).Run(c)
+	c2, e2 := steps.StatelessAtomic("atomic-run-2", nil, nil).Run(c)
 	if assert.NoError(t, e2) {
 		assert.Equal(t, c, c2)
 	}
 }
 
 func TestAtomicStep_Rollback(t *testing.T) {
-	st := steps.StatelessAtomic(failFn, noopFn)
+	st := steps.StatelessAtomic("atomic-rb-1", failFn, noopFn)
 	c, e := steps.WithContext(context.Background()).Run(st)
 	require.NoError(t, e)
 
-	c2, e2 := steps.WithContext(context.Background()).Run(steps.StatelessAtomic(failFn, nil))
+	c2, e2 := steps.WithContext(context.Background()).Run(steps.StatelessAtomic("atomic-rb-2", failFn, nil))
 	if assert.NoError(t, e2) {
 		assert.Equal(t, c, c2)
 	}

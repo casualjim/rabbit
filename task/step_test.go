@@ -8,12 +8,13 @@ package task
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 	"github.com/stretchr/testify/assert"
 )
@@ -125,7 +126,7 @@ func TestSeqStepRunFail(t *testing.T) {
 
 	seqStep := setupSeqStepFail()
 
-	bus := eventbus.New(logrus.New())
+	bus := eventbus.New(rabbit.GoLog(os.Stderr, "", 0))
 
 	reqCtx, err := seqStep.Run(reqCtx, bus)
 
@@ -142,7 +143,7 @@ func TestSeqStepRunSuccess(t *testing.T) {
 	reqCtx = testNewContext(reqCtx, runtime)
 
 	seqStep := setupSeqStepSucceess()
-	bus := eventbus.New(logrus.New())
+	bus := eventbus.New(rabbit.GoLog(os.Stderr, "", 0))
 
 	reqCtx, err := seqStep.Run(reqCtx, bus)
 
@@ -250,7 +251,7 @@ func TestParallelStepRunSuccess(t *testing.T) {
 	reqCtx := context.Background()
 
 	parallelStep := setupParallelStepSuccess()
-	bus := eventbus.New(logrus.New())
+	bus := eventbus.New(rabbit.GoLog(os.Stderr, "", 0))
 
 	reqCtx, err := parallelStep.Run(reqCtx, bus)
 
@@ -274,7 +275,7 @@ func TestParallelStepRunFailFast(t *testing.T) {
 	wg.Add(1)
 
 	var err error
-	bus := eventbus.New(logrus.New())
+	bus := eventbus.New(rabbit.GoLog(os.Stderr, "", 0))
 
 	go func() {
 		_, err = parallelStep.Run(reqCtx, bus)
@@ -302,7 +303,7 @@ func TestParallelStepRunFail(t *testing.T) {
 	wg.Add(1)
 
 	var err error
-	bus := eventbus.New(logrus.New())
+	bus := eventbus.New(rabbit.GoLog(os.Stderr, "", 0))
 
 	go func() {
 		_, err = parallelStep.Run(reqCtx, bus)
@@ -338,7 +339,7 @@ func TestParallelStepRunCancel(t *testing.T) {
 	wg.Add(1)
 
 	var err error
-	bus := eventbus.New(logrus.New())
+	bus := eventbus.New(rabbit.GoLog(os.Stderr, "", 0))
 
 	go func() {
 		reqCtx, err = parallelStep.Run(reqCtx, bus)

@@ -8,13 +8,13 @@ package task
 import (
 	"context"
 	"errors"
-	"log"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 	"github.com/stretchr/testify/assert"
 )
@@ -124,6 +124,7 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 	s.SetState(StateProcessing)
 	runtime, _ := testFromContext(ctx)
 	timeout := time.Second * time.Duration(s.wait)
+	log := rabbit.GoLog(os.Stderr, "", 0)
 
 	var wg1 sync.WaitGroup
 	ctxc := make(chan context.Context, 1)
@@ -140,7 +141,7 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 				}
 			}
 			ctxc <- testNewContext(ctx, runtime)
-			log.Printf("step %s execute..finished waiting.\n", s.GetName())
+			log.Infof("step %s execute..finished waiting.\n", s.GetName())
 			wg1.Done()
 			return
 		}
@@ -161,7 +162,7 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 						StepName: s.GetName(),
 						Status:   string(StateCanceled),
 					}))
-			log.Printf("step %s canceled \n", s.GetName())
+			log.Infof("step %s canceled \n", s.GetName())
 			wg2.Done()
 			return
 		case <-time.After(timeout):
@@ -184,17 +185,17 @@ func (s *testUnitStep) Run(ctx context.Context, bus eventbus.EventBus) (context.
 	wg2.Wait()
 	wg3.Wait()
 	close(ctxc)
-	log.Printf("step %s finished waiting, Proccessing result\n", s.GetName())
+	log.Infof("step %s finished waiting, Proccessing result\n", s.GetName())
 
 	if canceledErr != nil {
 		s.SetState(StateCanceled)
-		log.Printf("step %s returning from cancel: %s\n", s.GetName(), canceledErr)
+		log.Infof("step %s returning from cancel: %s\n", s.GetName(), canceledErr)
 		return ctx, canceledErr
 	}
 
 	if s.fail {
 		s.SetState(StateFailed)
-		log.Printf("step %s failed\n", s.GetName())
+		log.Infof("step %s failed\n", s.GetName())
 		return ctx, errors.New(failedMsg(s.GetName()))
 	}
 
@@ -266,7 +267,7 @@ func TestTaskRunFail(t *testing.T) {
 
 func TestTaskRunCancel(t *testing.T) {
 
-	taskOpts := TaskOpts{Log: logrus.New(), Type: TaskTypeTest, Ctx: context.Background()}
+	taskOpts := TaskOpts{Log: rabbit.GoLog(os.Stderr, "", 0), Type: TaskTypeTest, Ctx: context.Background()}
 
 	task, _ := NewTask(taskOpts, newTestUnitStep(StepInfo{Name: "CreateLeader", State: StateWaiting}, 2, "", Leader, true, "10.0.0.2"))
 	ctx, cancel := context.WithCancel(task.ctx)

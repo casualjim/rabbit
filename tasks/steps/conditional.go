@@ -40,6 +40,11 @@ func (b *BranchingStep) Else(step Step) *BranchingStep {
 	return b
 }
 
+// Name for this step, the name of a branching step is elided
+func (b *BranchingStep) Name() string {
+	return ""
+}
+
 // Run the step with the specified contest
 func (b *BranchingStep) Run(ctx context.Context) (context.Context, error) {
 	b.m.Lock()

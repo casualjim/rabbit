@@ -2,44 +2,53 @@ package steps_test
 
 import (
 	"context"
-	"log"
-	"os"
 	"testing"
 
 	"github.com/casualjim/rabbit/tasks/steps"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConcurrent_ContextLogger(t *testing.T) {
-	log := newLogger()
-	ctx := steps.SetLogger(context.Background(), log)
+func TestStepPath(t *testing.T) {
+	ctx := context.Background()
+	assert.Empty(t, steps.StepPath(ctx, ""))
 
-	assert.Equal(t, log, steps.ContextLogger(ctx))
+	assert.Equal(t, "local", steps.StepPath(ctx, "local"))
 
+	ctx = steps.SetParentName(ctx, "parent")
+	assert.Equal(t, "parent", steps.StepPath(ctx, ""))
+
+	assert.Equal(t, "parent.local", steps.StepPath(ctx, "local"))
 }
 
-func newLogger() *stdlogger {
-	return &stdlogger{
-		debug: log.New(os.Stderr, "[DEBUG] ", 0),
-		info:  log.New(os.Stderr, "[INFO] ", 0),
-		err:   log.New(os.Stderr, "[ERROR] ", 0),
-	}
+func TestContextParentName(t *testing.T) {
+	ctx := steps.SetParentName(context.Background(), "the step")
+	assert.Equal(t, "the step", steps.GetParentName(ctx))
+
+	ctx = context.WithValue(context.Background(), tk("dummy"), "blah")
+	ctx2 := steps.SetParentName(ctx, "")
+	assert.Equal(t, ctx, ctx2)
+
+	assert.Empty(t, steps.GetParentName(ctx2))
 }
 
-type stdlogger struct {
-	debug *log.Logger
-	info  *log.Logger
-	err   *log.Logger
+func TestContextStepName(t *testing.T) {
+	ctx := steps.SetStepName(context.Background(), "the step")
+	assert.Equal(t, "the step", steps.GetStepName(ctx))
+
+	ctx = context.WithValue(context.Background(), tk("dummy"), "blah")
+	ctx2 := steps.SetStepName(ctx, "")
+	assert.Equal(t, ctx, ctx2)
+
+	assert.Empty(t, steps.GetStepName(ctx2))
 }
 
-func (s *stdlogger) Debugf(str string, args ...interface{}) {
-	s.debug.Printf(str, args...)
-}
+func TestContextTaskName(t *testing.T) {
+	ctx := steps.SetTaskName(context.Background(), "the task")
+	assert.Equal(t, "the task", steps.GetTaskName(ctx))
 
-func (s *stdlogger) Infof(str string, args ...interface{}) {
-	s.debug.Printf(str, args...)
-}
+	ctx = context.WithValue(context.Background(), tk("dummy"), "blah")
+	ctx2 := steps.SetTaskName(ctx, "")
+	assert.Equal(t, ctx, ctx2)
 
-func (s *stdlogger) Errorf(str string, args ...interface{}) {
-	s.debug.Printf(str, args...)
+	assert.Empty(t, steps.GetTaskName(ctx2))
 }

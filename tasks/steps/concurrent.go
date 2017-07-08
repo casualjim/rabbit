@@ -8,17 +8,19 @@ import (
 	"time"
 
 	"github.com/casualjim/rabbit/tasks/steps/internal"
+	multierror "github.com/hashicorp/go-multierror"
 )
 
 // Concurrent executes the steps concurrently
-func Concurrent(steps ...Step) Step {
+func Concurrent(name StepName, steps ...Step) Step {
 	return &concStep{
-		steps: steps,
-		// idx:   1,
+		steps:    steps,
+		StepName: name,
 	}
 }
 
 type concStep struct {
+	StepName
 	steps []Step
 	idx   uint64
 }
@@ -29,8 +31,8 @@ type concres struct {
 	idx int
 }
 
+// Run the concurrent step
 func (c *concStep) Run(ctx context.Context) (context.Context, error) {
-
 	var wg sync.WaitGroup
 	merge := make(chan concres)
 	results := make(chan []concres)
@@ -96,10 +98,11 @@ func (c *concStep) Rollback(ctx context.Context) (context.Context, error) {
 }
 
 func maybeErrors(res []concres) error {
+	var err error
 	for _, e := range res {
 		if e.err != nil {
-			return e.err
+			err = multierror.Append(err, e.err)
 		}
 	}
-	return nil
+	return err
 }

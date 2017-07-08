@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/casualjim/rabbit"
 	"github.com/rcrowley/go-metrics"
 )
@@ -134,7 +133,7 @@ func New(log rabbit.Logger) EventBus {
 // NewWithTimeout creates a new eventbus with a timeout after which an event handler gets cancelled
 func NewWithTimeout(log rabbit.Logger, timeout time.Duration) EventBus {
 	if log == nil {
-		log = logrus.New().WithFields(nil)
+		log = rabbit.NopLogger
 	}
 	e := &defaultEventBus{
 		closing:      make(chan chan struct{}),

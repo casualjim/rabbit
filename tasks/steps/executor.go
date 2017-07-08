@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/casualjim/rabbit/eventbus"
 	"github.com/casualjim/rabbit/tasks/rollback"
 )
 
@@ -23,6 +24,7 @@ func WithContext(ctx context.Context) *Executor {
 // Executor can execute steps
 type Executor struct {
 	decider Decider
+	bus     eventbus.EventBus
 	ctx     context.Context
 	rw      sync.Mutex
 }

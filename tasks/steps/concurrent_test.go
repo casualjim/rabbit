@@ -10,28 +10,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func sleepRunStep(dur time.Duration, finished chan<- time.Time) *countingStep {
+func sleepRunStep(name steps.StepName, dur time.Duration, finished chan<- time.Time) *countingStep {
 	return &countingStep{
+		StepName: name,
 		run: func(c context.Context) (context.Context, error) {
-			// log.Println("running step with duration", dur)
 			defer func() {
 				finished <- time.Now()
 				close(finished)
 			}()
 			select {
 			case <-c.Done():
-				// log.Printf("cancelling step with duration %v", dur)
 				return c, c.Err()
 			case <-time.After(dur):
-				// log.Printf("step with duration %v done", dur)
 				return c, nil
 			}
 		},
 	}
 }
 
-func sleepFailRunStep(dur time.Duration, finished chan<- time.Time) *countingStep {
+func sleepFailRunStep(name steps.StepName, dur time.Duration, finished chan<- time.Time) *countingStep {
 	return &countingStep{
+		StepName: name,
 		run: func(c context.Context) (context.Context, error) {
 			defer func() {
 				finished <- time.Now()
@@ -50,14 +49,15 @@ func sleepFailRunStep(dur time.Duration, finished chan<- time.Time) *countingSte
 func TestConcurrent_Success(t *testing.T) {
 	finished1 := make(chan time.Time, 1)
 	finished2 := make(chan time.Time, 1)
-	step1 := sleepRunStep(200*time.Millisecond, finished1)
-	step2 := sleepRunStep(100*time.Millisecond, finished2)
+	step1 := sleepRunStep("step1", 200*time.Millisecond, finished1)
+	step2 := sleepRunStep("step2", 100*time.Millisecond, finished2)
 
 	ctx := context.Background()
 
 	expected := time.Now().Add(200 * time.Millisecond)
 	_, err := steps.WithContext(ctx).Run(
 		steps.Concurrent(
+			"concurrent-success",
 			step1,
 			step2,
 		),
@@ -77,15 +77,16 @@ func TestConcurrent_Success(t *testing.T) {
 func TestConcurrent_Rollback(t *testing.T) {
 	finished1 := make(chan time.Time, 1)
 	finished2 := make(chan time.Time, 1)
-	step0 := failRun()
-	step1 := sleepFailRunStep(200*time.Millisecond, finished1)
-	step2 := sleepRunStep(100*time.Millisecond, finished2)
+	step0 := failRun("step0")
+	step1 := sleepFailRunStep("step1", 200*time.Millisecond, finished1)
+	step2 := sleepRunStep("step2", 100*time.Millisecond, finished2)
 
 	ctx := context.Background()
 
 	expected := time.Now().Add(200 * time.Millisecond)
 	_, err := steps.WithContext(ctx).Run(
 		steps.Concurrent(
+			"concurrent-rollback",
 			step0,
 			step1,
 			step2,
@@ -109,10 +110,10 @@ func TestConcurrent_RunCancel(t *testing.T) {
 	finished0 := make(chan time.Time, 1)
 	finished1 := make(chan time.Time, 1)
 	finished2 := make(chan time.Time, 1)
-	step0 := sleepRunStep(150*time.Millisecond, finished0)
-	step1 := sleepRunStep(200*time.Millisecond, finished1)
+	step0 := sleepRunStep("step0", 150*time.Millisecond, finished0)
+	step1 := sleepRunStep("step1", 200*time.Millisecond, finished1)
 	step1.rollback = failFn
-	step2 := sleepRunStep(100*time.Millisecond, finished2)
+	step2 := sleepRunStep("step2", 100*time.Millisecond, finished2)
 
 	ctx, cancel := context.WithCancel(internal.SetThrottle(context.Background(), 100*time.Millisecond))
 
@@ -122,6 +123,7 @@ func TestConcurrent_RunCancel(t *testing.T) {
 	}()
 	_, err := steps.WithContext(ctx).Run(
 		steps.Concurrent(
+			"concurrent-cancel",
 			step0,
 			step1,
 			step2,

@@ -13,15 +13,16 @@ import (
 func failFn(c context.Context) (context.Context, error) { return c, assert.AnError }
 func noopFn(c context.Context) (context.Context, error) { return c, nil }
 
-func failRun() *countingStep {
-	return stepRun(failFn)
+func failRun(name steps.StepName) *countingStep {
+	return stepRun(name, failFn)
 }
 
-func stepRun(fn func(context.Context) (context.Context, error)) *countingStep {
-	return &countingStep{run: fn}
+func stepRun(name steps.StepName, fn func(context.Context) (context.Context, error)) *countingStep {
+	return &countingStep{StepName: name, run: fn}
 }
 
 type countingStep struct {
+	steps.StepName
 	run           func(context.Context) (context.Context, error)
 	rollback      func(context.Context) (context.Context, error)
 	runCount      int64
@@ -54,7 +55,7 @@ func (c *countingStep) Rollbacks() int {
 
 func TestExecutor_Run(t *testing.T) {
 	ctx := context.Background()
-	rs := &countingStep{}
+	rs := &countingStep{StepName: steps.StepName("run")}
 
 	cx, err := steps.WithContext(ctx).Should(rollback.Always).Run(rs)
 	if assert.NoError(t, err) {
@@ -66,7 +67,7 @@ func TestExecutor_Run(t *testing.T) {
 
 func TestExecutor_Rollback(t *testing.T) {
 	ctx := context.Background()
-	rs := failRun()
+	rs := failRun("rollback")
 
 	cx, err := steps.WithContext(ctx).Should(rollback.Always).Run(rs)
 	if assert.NoError(t, err) {
