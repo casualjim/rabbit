@@ -1,80 +1,105 @@
 package steps
 
-// // Concurrent executes the steps concurrently
-// func Concurrent(steps ...Step) Step {
-// 	return &concStep{
-// 		steps: steps,
-// 	}
-// }
+import (
+	"context"
 
-// type concStep struct {
-// 	steps []Step
-// 	idx   uint64
-// }
+	"sync"
+	"sync/atomic"
+	"time"
 
-// type concres struct {
-// 	ctx context.Context
-// 	err error
-// 	idx int
-// }
+	"github.com/casualjim/rabbit/tasks/steps/internal"
+)
 
-// func (c *concStep) Run(ctx context.Context) (context.Context, error) {
+// Concurrent executes the steps concurrently
+func Concurrent(steps ...Step) Step {
+	return &concStep{
+		steps: steps,
+		// idx:   1,
+	}
+}
 
-// 	var wg sync.WaitGroup
-// 	merge := make(chan concres)
-// 	results := make(chan []concres)
+type concStep struct {
+	steps []Step
+	idx   uint64
+}
 
-// 	for i, step := range c.steps {
-// 		wg.Add(1)
-// 		go func(ctx context.Context, i int, step Step) {
-// 			cx, err := step.Run(ctx)
-// 			for {
-// 				ov := atomic.LoadUint64(&c.idx)
-// 				nv := ov | uint64(i)
-// 				if atomic.CompareAndSwapUint64(&c.idx, ov, nv) {
-// 					break
-// 				}
-// 			}
-// 			merge <- concres{cx, err, i}
-// 			wg.Done()
-// 		}(ctx, i, step)
-// 	}
+type concres struct {
+	ctx context.Context
+	err error
+	idx int
+}
 
-// 	go func() {
-// 		wg.Wait()
-// 		close(merge)
-// 	}()
+func (c *concStep) Run(ctx context.Context) (context.Context, error) {
 
-// 	go func(ln int) {
-// 		collected := make([]concres, ln)
-// 		for res := range merge {
-// 			collected[res.idx] = res
-// 		}
-// 		results <- collected
-// 		close(results)
-// 	}(len(c.steps))
+	var wg sync.WaitGroup
+	merge := make(chan concres)
+	results := make(chan []concres)
+	throttle := internal.GetThrottle(ctx)
+Outer:
+	for i, step := range c.steps {
+		wg.Add(1)
+		if throttle > 0 {
+			time.Sleep(throttle)
+		}
+		select {
+		case <-ctx.Done():
+			wg.Done()
+			break Outer
+		default:
+		}
+		go func(ctx context.Context, i int, step Step) {
+			for {
+				ov := atomic.LoadUint64(&c.idx)
+				nv := ov | 1<<uint64(i)
+				if atomic.CompareAndSwapUint64(&c.idx, ov, nv) {
+					break
+				}
+			}
+			cx, err := step.Run(ctx)
+			merge <- concres{cx, err, i}
+			wg.Done()
+		}(ctx, i, step)
+	}
 
-// 	select {
-// 	case <-ctx.Done():
-// 		return ctx, ctx.Err()
-// 	case <-results:
-// 		// done
-// 		return ctx, nil
-// 	}
-// }
+	go func() {
+		wg.Wait()
+		close(merge)
+	}()
 
-// func (c *concStep) Rollback(ctx context.Context) (context.Context, error) {
-// 	idx := atomic.LoadUint64(&c.idx)
+	go func(ln int) {
+		collected := make([]concres, ln)
+		for res := range merge {
+			collected[res.idx] = res
+		}
+		results <- collected
+		close(results)
+	}(len(c.steps))
 
-// 	for i := range c.steps {
-// 		if idx&uint64(i) == 0 {
-// 			continue
-// 		}
-// 		step := c.steps[i]
-// 		_, err := step.Rollback(ctx)
-// 		if err != nil {
-// 			continue
-// 		}
-// 	}
-// 	return ctx, nil
-// }
+	collected := <-results
+	return ctx, maybeErrors(collected)
+}
+
+func (c *concStep) Rollback(ctx context.Context) (context.Context, error) {
+	set := atomic.LoadUint64(&c.idx)
+
+	for i := range c.steps {
+		if set&(1<<uint64(i)) == 0 {
+			continue
+		}
+		step := c.steps[i]
+		_, err := step.Rollback(ctx)
+		if err != nil {
+			continue
+		}
+	}
+	return ctx, nil
+}
+
+func maybeErrors(res []concres) error {
+	for _, e := range res {
+		if e.err != nil {
+			return e.err
+		}
+	}
+	return nil
+}

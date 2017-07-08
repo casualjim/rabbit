@@ -29,8 +29,8 @@ func (s *pipelineStep) Run(ctx context.Context) (context.Context, error) {
 
 	var err error
 	for i, step := range s.steps {
+		s.idx = i // record we started, step at index
 		ctx, err = step.Run(ctx)
-		s.idx = i
 		if err != nil {
 			break
 		}
