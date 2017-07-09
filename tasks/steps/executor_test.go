@@ -57,6 +57,8 @@ func (c *countingStep) Rollbacks() int {
 func TestExecutor_Run(t *testing.T) {
 	rs := &countingStep{StepName: steps.StepName("run")}
 
+	assert.NotPanics(t, (&(steps.Executor{})).Cancel)
+
 	exec := steps.Execution(
 		steps.Should(rollback.Always),
 		steps.PublishTo(eventbus.NopBus),
