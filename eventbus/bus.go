@@ -106,6 +106,18 @@ func Filtered(matches EventPredicate, next EventHandler) EventHandler {
 	}
 }
 
+// NopBus represents a zero value for an event bus
+var NopBus EventBus = &nopBus{}
+
+type nopBus struct {
+}
+
+func (b *nopBus) Close() error                { return nil }
+func (b *nopBus) Publish(Event)               {}
+func (b *nopBus) Subscribe(...EventHandler)   {}
+func (b *nopBus) Unsubscribe(...EventHandler) {}
+func (b *nopBus) Len() int                    { return 0 }
+
 // EventBus does fanout to registered channels
 type EventBus interface {
 	Close() error

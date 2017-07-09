@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/casualjim/rabbit/eventbus"
 	"github.com/casualjim/rabbit/tasks/rollback"
 	"github.com/casualjim/rabbit/tasks/steps"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,12 @@ func TestExecutor_Run(t *testing.T) {
 	ctx := context.Background()
 	rs := &countingStep{StepName: steps.StepName("run")}
 
-	cx, err := steps.WithContext(ctx).Should(rollback.Always).Run(rs)
+	cx, err := steps.Execution(
+		steps.ParentContext(ctx),
+		steps.Should(rollback.Always),
+		steps.PublishTo(eventbus.NopBus),
+	).Run(rs)
+
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
 		assert.Equal(t, 1, rs.Runs())
@@ -69,7 +75,11 @@ func TestExecutor_Rollback(t *testing.T) {
 	ctx := context.Background()
 	rs := failRun("rollback")
 
-	cx, err := steps.WithContext(ctx).Should(rollback.Always).Run(rs)
+	cx, err := steps.Execution(
+		steps.ParentContext(ctx),
+		steps.Should(rollback.Always),
+		steps.PublishTo(eventbus.NopBus),
+	).Run(rs)
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
 		assert.Equal(t, 1, rs.Runs())

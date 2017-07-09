@@ -17,7 +17,7 @@ func TestBranching(t *testing.T) {
 	left := &countingStep{}
 
 	cond := steps.If(GoRight).Then(right).Else(left)
-	ctx, err := steps.WithContext(context.Background()).Should(rollback.OnCancel).Run(cond)
+	ctx, err := steps.Execution(steps.Should(rollback.OnCancel)).Run(cond)
 
 	if assert.NoError(t, err) {
 		assert.NotNil(t, ctx)
@@ -27,7 +27,7 @@ func TestBranching(t *testing.T) {
 	}
 
 	rightFail := failRun("branching-fail")
-	ctx, err = steps.WithContext(context.Background()).Run(
+	ctx, err = steps.Execution().Run(
 		steps.If(GoRight).Then(rightFail).Else(left),
 	)
 	if assert.NoError(t, err) {
@@ -44,7 +44,7 @@ func TestBranching(t *testing.T) {
 	left = &countingStep{
 		StepName: steps.StepName("left"),
 	}
-	ctx, err = steps.WithContext(context.Background()).Run(
+	ctx, err = steps.Execution().Run(
 		steps.If(GoLeft).Then(right).Else(left),
 	)
 
@@ -56,7 +56,7 @@ func TestBranching(t *testing.T) {
 
 	rightFail = failRun("branching-fail-right")
 	leftFail := failRun("branching-fail-left")
-	ctx, err = steps.WithContext(context.Background()).Run(
+	ctx, err = steps.Execution().Run(
 		steps.If(GoLeft).Then(right).Else(leftFail),
 	)
 	if assert.NoError(t, err) {

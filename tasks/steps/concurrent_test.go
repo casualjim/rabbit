@@ -55,7 +55,7 @@ func TestConcurrent_Success(t *testing.T) {
 	ctx := context.Background()
 
 	expected := time.Now().Add(200 * time.Millisecond)
-	_, err := steps.WithContext(ctx).Run(
+	_, err := steps.Execution(steps.ParentContext(ctx)).Run(
 		steps.Concurrent(
 			"concurrent-success",
 			step1,
@@ -84,7 +84,7 @@ func TestConcurrent_Rollback(t *testing.T) {
 	ctx := context.Background()
 
 	expected := time.Now().Add(200 * time.Millisecond)
-	_, err := steps.WithContext(ctx).Run(
+	_, err := steps.Execution(steps.ParentContext(ctx)).Run(
 		steps.Concurrent(
 			"concurrent-rollback",
 			step0,
@@ -121,7 +121,7 @@ func TestConcurrent_RunCancel(t *testing.T) {
 		<-time.After(250 * time.Millisecond)
 		cancel()
 	}()
-	_, err := steps.WithContext(ctx).Run(
+	_, err := steps.Execution(steps.ParentContext(ctx)).Run(
 		steps.Concurrent(
 			"concurrent-cancel",
 			step0,

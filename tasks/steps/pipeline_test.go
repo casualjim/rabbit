@@ -12,7 +12,7 @@ import (
 func TestPipeline(t *testing.T) {
 	step := &countingStep{}
 
-	ctx, err := steps.WithContext(context.Background()).Run(
+	ctx, err := steps.Execution().Run(
 		steps.Pipeline(
 			"pipeline-1",
 			step,
@@ -29,7 +29,7 @@ func TestPipeline(t *testing.T) {
 
 	step = &countingStep{}
 	stepFail := failRun("pipeline-fail")
-	ctx, err = steps.WithContext(context.Background()).Run(
+	ctx, err = steps.Execution().Run(
 		steps.Pipeline(
 			"pipeline-2",
 			step,
@@ -53,7 +53,7 @@ func TestPipeline_Cancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	ctx2, err := steps.WithContext(ctx).Run(
+	ctx2, err := steps.Execution(steps.ParentContext(ctx)).Run(
 		steps.Pipeline(
 			"pipeline-cancel-1",
 			step,
@@ -85,7 +85,7 @@ func TestPipeline_Cancelled(t *testing.T) {
 		},
 	}
 
-	ctx4, err2 := steps.WithContext(ctx3).Run(
+	ctx4, err2 := steps.Execution(steps.ParentContext(ctx3)).Run(
 		steps.Pipeline(
 			"pipeline-cancel-2",
 			runStep,
