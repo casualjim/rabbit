@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/casualjim/rabbit/tasks/steps/internal"
+	"github.com/casualjim/rabbit/tasks/internal"
 	multierror "github.com/hashicorp/go-multierror"
 )
 

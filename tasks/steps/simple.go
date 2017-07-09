@@ -12,7 +12,7 @@ func noop(c context.Context) (context.Context, error) { return c, nil }
 
 func init() {
 	// eagerly create this one
-	Zero = Stateless("<nop>", Run(noop), Rollback(noop))
+	Zero = Stateless("<nop>", noop, noop)
 }
 
 // StepName represents a step name
@@ -25,12 +25,12 @@ func (s StepName) Name() string {
 
 // StatelessAtomic step only 1 invocation of the methods happens at any given time
 // the functions are guarded by a mutex
-func StatelessAtomic(name StepName, run Run, rollback Rollback) Step {
+func StatelessAtomic(name StepName, run func(context.Context) (context.Context, error), rollback func(context.Context) (context.Context, error)) Step {
 	return &atomicStep{StepName: name, simpleStep: simpleStep{run: run, rollback: rollback}}
 }
 
 // Stateless is a simple single unit of work without any state to be maintained on the step
-func Stateless(name StepName, run Run, rollback Rollback) Step {
+func Stateless(name StepName, run func(context.Context) (context.Context, error), rollback func(context.Context) (context.Context, error)) Step {
 	return &simpleStep{StepName: name, run: run, rollback: rollback}
 }
 
@@ -62,8 +62,8 @@ func (a *atomicStep) Rollback(ctx context.Context) (context.Context, error) {
 
 type simpleStep struct {
 	StepName
-	run      Run
-	rollback Rollback
+	run      func(context.Context) (context.Context, error)
+	rollback func(context.Context) (context.Context, error)
 }
 
 func (a *simpleStep) Run(ctx context.Context) (context.Context, error) {

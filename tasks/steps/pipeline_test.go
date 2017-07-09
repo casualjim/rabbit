@@ -12,7 +12,7 @@ import (
 func TestPipeline(t *testing.T) {
 	step := &countingStep{}
 
-	ctx, err := steps.Execution().Run(
+	ctx, err := steps.Plan(steps.Run(
 		steps.Pipeline(
 			"pipeline-1",
 			step,
@@ -20,7 +20,7 @@ func TestPipeline(t *testing.T) {
 			step,
 			step,
 		),
-	)
+	)).Execute()
 
 	if assert.NoError(t, err) {
 		assert.NotNil(t, ctx)
@@ -29,7 +29,7 @@ func TestPipeline(t *testing.T) {
 
 	step = &countingStep{}
 	stepFail := failRun("pipeline-fail")
-	ctx, err = steps.Execution().Run(
+	ctx, err = steps.Plan(steps.Run(
 		steps.Pipeline(
 			"pipeline-2",
 			step,
@@ -37,7 +37,7 @@ func TestPipeline(t *testing.T) {
 			stepFail,
 			stepFail,
 		),
-	)
+	)).Execute()
 
 	if assert.NoError(t, err) {
 		assert.NotNil(t, ctx)
@@ -60,7 +60,7 @@ func TestPipeline_TransientErr(t *testing.T) {
 		return c, assert.AnError
 	})
 
-	ctx, err := steps.Execution().Run(
+	ctx, err := steps.Plan(steps.Run(
 		steps.Pipeline(
 			"pipeline-transient",
 			step,
@@ -70,7 +70,7 @@ func TestPipeline_TransientErr(t *testing.T) {
 			stepFail,
 			step,
 		),
-	)
+	)).Execute()
 
 	if assert.NoError(t, err) {
 		assert.NotNil(t, ctx)
@@ -84,18 +84,18 @@ func TestPipeline_TransientErr(t *testing.T) {
 func TestPipeline_Cancelled(t *testing.T) {
 	step := &countingStep{StepName: steps.StepName("pipeline-cancelled-1")}
 
-	exec := steps.Execution()
-	ctx := exec.Context()
-	exec.Cancel()
-	ctx2, err := exec.Run(
+	exec := steps.Plan(steps.Run(
 		steps.Pipeline(
 			"pipeline-cancel-1",
 			step,
 			step,
 			step,
 			step,
-		),
+		)),
 	)
+	ctx := exec.Context()
+	exec.Cancel()
+	ctx2, err := exec.Execute()
 
 	if assert.NoError(t, err) {
 		assert.NotNil(t, ctx2)
@@ -103,12 +103,12 @@ func TestPipeline_Cancelled(t *testing.T) {
 		assert.Equal(t, 0, step.Runs())
 	}
 
-	exec2 := steps.Execution()
+	ctxt, cancel := context.WithCancel(context.Background())
 	runStep := &countingStep{StepName: steps.StepName("pipeline-cancelled-run-1")}
 	cancelStep := &countingStep{
 		StepName: steps.StepName("pipeline-cancelled-cancel-1"),
 		run: func(c context.Context) (context.Context, error) {
-			exec2.Cancel()
+			cancel()
 			return c, nil
 		},
 	}
@@ -119,15 +119,18 @@ func TestPipeline_Cancelled(t *testing.T) {
 		},
 	}
 
-	ctx4, err2 := exec2.Run(
-		steps.Pipeline(
+	exec2 := steps.Plan(
+		steps.ParentContext(ctxt),
+		steps.Run(steps.Pipeline(
 			"pipeline-cancel-2",
 			runStep,
 			rbFailStep,
 			cancelStep,
 			runStep,
-		),
+		)),
 	)
+
+	ctx4, err2 := exec2.Execute()
 
 	if assert.NoError(t, err2) {
 		assert.NotNil(t, ctx4)

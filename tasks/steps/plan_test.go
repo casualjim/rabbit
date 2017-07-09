@@ -57,14 +57,15 @@ func (c *countingStep) Rollbacks() int {
 func TestExecutor_Run(t *testing.T) {
 	rs := &countingStep{StepName: steps.StepName("run")}
 
-	assert.NotPanics(t, (&(steps.Executor{})).Cancel)
+	assert.NotPanics(t, (&(steps.Planned{})).Cancel)
 
-	exec := steps.Execution(
+	exec := steps.Plan(
 		steps.Should(rollback.Always),
 		steps.PublishTo(eventbus.NopBus),
+		steps.Run(rs),
 	)
 	ctx := exec.Context()
-	cx, err := exec.Run(rs)
+	cx, err := exec.Execute()
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
@@ -76,12 +77,13 @@ func TestExecutor_Run(t *testing.T) {
 func TestExecutor_Rollback(t *testing.T) {
 	rs := failRun("rollback")
 
-	executor := steps.Execution(
+	executor := steps.Plan(
 		steps.Should(rollback.Always),
 		steps.PublishTo(eventbus.NopBus),
+		steps.Run(rs),
 	)
 	ctx := executor.Context()
-	cx, err := executor.Run(rs)
+	cx, err := executor.Execute()
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
 		assert.Equal(t, 1, rs.Runs())

@@ -3,8 +3,6 @@ package internal
 import (
 	"context"
 	"time"
-
-	"github.com/casualjim/rabbit/eventbus"
 )
 
 // StepKey are keys use in steps
@@ -38,18 +36,4 @@ func GetThrottle(ctx context.Context) time.Duration {
 		return 0
 	}
 	return dur
-}
-
-// SetPublisher on the context
-func SetPublisher(ctx context.Context, pub eventbus.EventBus) context.Context {
-	return context.WithValue(ctx, PublisherKey, pub)
-}
-
-// GetPublisher from the context
-func GetPublisher(ctx context.Context) eventbus.EventBus {
-	bus, ok := ctx.Value(PublisherKey).(eventbus.EventBus)
-	if !ok {
-		return nil
-	}
-	return bus
 }

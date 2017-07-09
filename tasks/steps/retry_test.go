@@ -16,7 +16,7 @@ func TestRetryMax_Fail(t *testing.T) {
 
 	retry := steps.Retry(backoff.WithMaxTries(backoff.NewConstantBackOff(20*time.Millisecond), 3), failStep)
 	assert.Equal(t, failStep.Name(), retry.Name())
-	_, err := steps.Execution().Run(retry)
+	_, err := steps.Plan(steps.Run(retry)).Execute()
 	if assert.NoError(t, err) {
 		assert.Equal(t, 4, failStep.Runs())
 		assert.Equal(t, 1, failStep.Rollbacks())
@@ -36,7 +36,7 @@ func TestRetryMax_Success(t *testing.T) {
 
 	retry := steps.Retry(backoff.WithMaxTries(backoff.NewConstantBackOff(20*time.Millisecond), 3), successStep)
 	assert.Equal(t, successStep.Name(), retry.Name())
-	ctx, err := steps.Execution().Run(retry)
+	ctx, err := steps.Plan(steps.Run(retry)).Execute()
 	if assert.NoError(t, err) {
 		assert.Equal(t, expected, ctx)
 		assert.Equal(t, 2, successStep.Runs())
@@ -55,7 +55,7 @@ func TestRetryMax_CircuitBreaker(t *testing.T) {
 	})
 
 	retry := steps.Retry(backoff.WithMaxTries(backoff.NewConstantBackOff(20*time.Millisecond), 8), breakingStep)
-	_, err := steps.Execution(steps.Should(rollback.Never)).Run(retry)
+	_, err := steps.Plan(steps.Should(rollback.Never), steps.Run(retry)).Execute()
 	if assert.Error(t, err) {
 		assert.Equal(t, 3, breakingStep.Runs())
 		assert.Equal(t, 0, breakingStep.Rollbacks())
@@ -63,18 +63,24 @@ func TestRetryMax_CircuitBreaker(t *testing.T) {
 }
 
 func TestRetryMax_Cancel(t *testing.T) {
-	exec := steps.Execution(steps.Should(rollback.Never))
+	ctx, cancel := context.WithCancel(context.Background())
+
 	var cnt int
 	breakingStep := stepRun("retry-max-cancel", func(c context.Context) (context.Context, error) {
 		if cnt > 1 {
-			exec.Cancel()
+			cancel()
 		}
 		cnt++
 		return c, assert.AnError
 	})
 
 	retry := steps.Retry(backoff.WithMaxTries(backoff.NewConstantBackOff(20*time.Millisecond), 8), breakingStep)
-	_, err := exec.Run(retry)
+
+	_, err := steps.Plan(
+		steps.ParentContext(ctx),
+		steps.Should(rollback.Never),
+		steps.Run(retry),
+	).Execute()
 	if assert.Error(t, err) {
 		assert.Equal(t, 3, breakingStep.Runs())
 		assert.Equal(t, 0, breakingStep.Rollbacks())

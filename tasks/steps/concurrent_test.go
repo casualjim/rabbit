@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/casualjim/rabbit/tasks/internal"
 	"github.com/casualjim/rabbit/tasks/steps"
-	"github.com/casualjim/rabbit/tasks/steps/internal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,13 +55,14 @@ func TestConcurrent_Success(t *testing.T) {
 	ctx := context.Background()
 
 	expected := time.Now().Add(200 * time.Millisecond)
-	_, err := steps.Execution(steps.ParentContext(ctx)).Run(
-		steps.Concurrent(
+	_, err := steps.Plan(
+		steps.ParentContext(ctx),
+		steps.Run(steps.Concurrent(
 			"concurrent-success",
 			step1,
 			step2,
-		),
-	)
+		)),
+	).Execute()
 
 	done2 := <-finished2
 	done1 := <-finished1
@@ -84,14 +85,15 @@ func TestConcurrent_Rollback(t *testing.T) {
 	ctx := context.Background()
 
 	expected := time.Now().Add(200 * time.Millisecond)
-	_, err := steps.Execution(steps.ParentContext(ctx)).Run(
-		steps.Concurrent(
+	_, err := steps.Plan(
+		steps.ParentContext(ctx),
+		steps.Run(steps.Concurrent(
 			"concurrent-rollback",
 			step0,
 			step1,
 			step2,
-		),
-	)
+		)),
+	).Execute()
 
 	done2 := <-finished2
 	done1 := <-finished1
@@ -121,14 +123,15 @@ func TestConcurrent_RunCancel(t *testing.T) {
 		<-time.After(250 * time.Millisecond)
 		cancel()
 	}()
-	_, err := steps.Execution(steps.ParentContext(ctx)).Run(
-		steps.Concurrent(
+	_, err := steps.Plan(
+		steps.ParentContext(ctx),
+		steps.Run(steps.Concurrent(
 			"concurrent-cancel",
 			step0,
 			step1,
 			step2,
-		),
-	)
+		)),
+	).Execute()
 
 	<-finished1
 	<-finished0

@@ -30,13 +30,13 @@ func TestZeroStep(t *testing.T) {
 func TestSimpleStep_Run(t *testing.T) {
 	st := steps.Stateless(
 		"simple-run-1",
-		steps.Run(func(c context.Context) (context.Context, error) {
+		func(c context.Context) (context.Context, error) {
 			return context.WithValue(c, tk("something"), "the value"), nil
-		}),
-		steps.Rollback(noopFn),
+		},
+		noopFn,
 	)
 
-	c, e := steps.Execution().Run(st)
+	c, e := steps.Plan(steps.Run(st)).Execute()
 	if assert.NoError(t, e) {
 		assert.Equal(t, "the value", c.Value(tk("something")))
 	}
@@ -49,23 +49,23 @@ func TestSimpleStep_Run(t *testing.T) {
 
 func TestSimpleStep_Rollback(t *testing.T) {
 	st := steps.Stateless("simple-rb-1", failFn, noopFn)
-	_, e := steps.Execution().Run(st)
+	_, e := steps.Plan(steps.Run(st)).Execute()
 	require.NoError(t, e)
 
-	_, e2 := steps.Execution().Run(steps.Stateless("simple-rb-2", failFn, nil))
+	_, e2 := steps.Plan(steps.Run(steps.Stateless("simple-rb-2", failFn, nil))).Execute()
 	assert.NoError(t, e2)
 }
 
 func TestAtomicStep_Run(t *testing.T) {
 	st := steps.StatelessAtomic(
 		"atomic-run-1",
-		steps.Run(func(c context.Context) (context.Context, error) {
+		func(c context.Context) (context.Context, error) {
 			return context.WithValue(c, tk("something"), "the value"), nil
-		}),
-		steps.Rollback(noopFn),
+		},
+		noopFn,
 	)
 
-	c, e := steps.Execution().Run(st)
+	c, e := steps.Plan(steps.Run(st)).Execute()
 	if assert.NoError(t, e) {
 		assert.Equal(t, "the value", c.Value(tk("something")))
 	}
@@ -78,9 +78,9 @@ func TestAtomicStep_Run(t *testing.T) {
 
 func TestAtomicStep_Rollback(t *testing.T) {
 	st := steps.StatelessAtomic("atomic-rb-1", failFn, noopFn)
-	_, e := steps.Execution().Run(st)
+	_, e := steps.Plan(steps.Run(st)).Execute()
 	require.NoError(t, e)
 
-	_, e2 := steps.Execution().Run(steps.StatelessAtomic("atomic-rb-2", failFn, nil))
+	_, e2 := steps.Plan(steps.Run(steps.StatelessAtomic("atomic-rb-2", failFn, nil))).Execute()
 	assert.NoError(t, e2)
 }

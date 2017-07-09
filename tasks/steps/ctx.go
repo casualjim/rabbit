@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/casualjim/rabbit/tasks/steps/internal"
+	"github.com/casualjim/rabbit/tasks/internal"
 )
 
 // StepPath reads the parent step name from the context and adds the local name as a dotted path to it

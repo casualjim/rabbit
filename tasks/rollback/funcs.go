@@ -15,6 +15,5 @@ func Never(error) bool {
 
 // OnCancel rolls the step back on cancel or timeout but not on errors
 func OnCancel(err error) bool {
-	errwrap.Contains(err, context.Canceled.Error())
-	return err == context.Canceled || err == context.DeadlineExceeded
+	return errwrap.Contains(err, context.Canceled.Error()) || errwrap.Contains(err, context.DeadlineExceeded.Error())
 }
