@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
 	"github.com/casualjim/rabbit/tasks/rollback"
 )
@@ -21,12 +20,15 @@ type ExecOpt func(*Executor)
 func Execution(configuration ...ExecOpt) *Executor {
 	exec := &Executor{
 		decider: rollback.Always,
-		bus:     eventbus.New(rabbit.NopLogger),
 		ctx:     context.Background(),
 	}
 	for _, conf := range configuration {
 		conf(exec)
 	}
+	if exec.bus == nil {
+		exec.bus = eventbus.NopBus
+	}
+	exec.ctx, exec.cancel = context.WithCancel(exec.ctx)
 	return exec
 }
 
@@ -51,6 +53,7 @@ func PublishTo(bus eventbus.EventBus) ExecOpt {
 type Executor struct {
 	decider Decider
 	bus     eventbus.EventBus
+	cancel  context.CancelFunc
 	ctx     context.Context
 	rw      sync.Mutex
 }
@@ -67,3 +70,14 @@ func (e *Executor) Run(step Step) (context.Context, error) {
 	e.rw.Unlock()
 	return cx, err
 }
+
+// Cancel the execution of the steps
+func (e *Executor) Cancel() {
+	if e.cancel == nil {
+		return
+	}
+	e.cancel()
+}
+
+// Context of the executor
+func (e *Executor) Context() context.Context { return e.ctx }

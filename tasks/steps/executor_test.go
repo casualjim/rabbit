@@ -55,14 +55,14 @@ func (c *countingStep) Rollbacks() int {
 }
 
 func TestExecutor_Run(t *testing.T) {
-	ctx := context.Background()
 	rs := &countingStep{StepName: steps.StepName("run")}
 
-	cx, err := steps.Execution(
-		steps.ParentContext(ctx),
+	exec := steps.Execution(
 		steps.Should(rollback.Always),
 		steps.PublishTo(eventbus.NopBus),
-	).Run(rs)
+	)
+	ctx := exec.Context()
+	cx, err := exec.Run(rs)
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
@@ -72,14 +72,14 @@ func TestExecutor_Run(t *testing.T) {
 }
 
 func TestExecutor_Rollback(t *testing.T) {
-	ctx := context.Background()
 	rs := failRun("rollback")
 
-	cx, err := steps.Execution(
-		steps.ParentContext(ctx),
+	executor := steps.Execution(
 		steps.Should(rollback.Always),
 		steps.PublishTo(eventbus.NopBus),
-	).Run(rs)
+	)
+	ctx := executor.Context()
+	cx, err := executor.Run(rs)
 	if assert.NoError(t, err) {
 		assert.Equal(t, ctx, cx)
 		assert.Equal(t, 1, rs.Runs())

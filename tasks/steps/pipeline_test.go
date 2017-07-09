@@ -50,10 +50,11 @@ func TestPipeline(t *testing.T) {
 
 func TestPipeline_Cancelled(t *testing.T) {
 	step := &countingStep{StepName: steps.StepName("pipeline-cancelled-1")}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
 
-	ctx2, err := steps.Execution(steps.ParentContext(ctx)).Run(
+	exec := steps.Execution()
+	ctx := exec.Context()
+	exec.Cancel()
+	ctx2, err := exec.Run(
 		steps.Pipeline(
 			"pipeline-cancel-1",
 			step,
@@ -69,12 +70,12 @@ func TestPipeline_Cancelled(t *testing.T) {
 		assert.Equal(t, 0, step.Runs())
 	}
 
-	ctx3, cancel2 := context.WithCancel(context.Background())
+	exec2 := steps.Execution()
 	runStep := &countingStep{StepName: steps.StepName("pipeline-cancelled-run-1")}
 	cancelStep := &countingStep{
 		StepName: steps.StepName("pipeline-cancelled-cancel-1"),
 		run: func(c context.Context) (context.Context, error) {
-			cancel2()
+			exec2.Cancel()
 			return c, nil
 		},
 	}
@@ -85,7 +86,7 @@ func TestPipeline_Cancelled(t *testing.T) {
 		},
 	}
 
-	ctx4, err2 := steps.Execution(steps.ParentContext(ctx3)).Run(
+	ctx4, err2 := exec2.Run(
 		steps.Pipeline(
 			"pipeline-cancel-2",
 			runStep,
@@ -97,7 +98,7 @@ func TestPipeline_Cancelled(t *testing.T) {
 
 	if assert.NoError(t, err2) {
 		assert.NotNil(t, ctx4)
-		assert.Equal(t, ctx3, ctx4)
+		assert.Equal(t, exec2.Context(), ctx4)
 		assert.Equal(t, 1, runStep.Runs())
 		assert.Equal(t, 1, rbFailStep.Runs())
 		assert.Equal(t, 1, cancelStep.Runs())
