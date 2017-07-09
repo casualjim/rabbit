@@ -36,6 +36,9 @@ func (s *pipelineStep) Run(ctx context.Context) (context.Context, error) {
 		var ie error
 		ctx, ie = step.Run(ctx)
 		if ie != nil {
+			if _, ok := ie.(*TransientError); ok {
+				continue
+			}
 			err = multierror.Append(err, ie)
 			break
 		}

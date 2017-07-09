@@ -33,7 +33,12 @@ func (r *retryStep) Run(ctx context.Context) (context.Context, error) {
 		cx, err := r.step.Run(ctx)
 		if err == nil {
 			fctx = cx
+		} else {
+			if e, ok := err.(*PermanentError); ok {
+				return backoff.Permanent(e.Err)
+			}
 		}
+
 		return err
 	}
 

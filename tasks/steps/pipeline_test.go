@@ -48,6 +48,39 @@ func TestPipeline(t *testing.T) {
 	}
 }
 
+func TestPipeline_TransientErr(t *testing.T) {
+	step := &countingStep{}
+	var cnt int
+
+	stepFail := stepRun("pipeline-fail", func(c context.Context) (context.Context, error) {
+		if cnt == 0 {
+			cnt += 1
+			return c, steps.TransientErr(assert.AnError)
+		}
+		return c, assert.AnError
+	})
+
+	ctx, err := steps.Execution().Run(
+		steps.Pipeline(
+			"pipeline-transient",
+			step,
+			step,
+			stepFail,
+			stepFail,
+			stepFail,
+			step,
+		),
+	)
+
+	if assert.NoError(t, err) {
+		assert.NotNil(t, ctx)
+		assert.Equal(t, 2, step.Runs())
+		assert.Equal(t, 2, stepFail.Runs())
+		assert.Equal(t, 2, step.Rollbacks())
+		assert.Equal(t, 2, stepFail.Rollbacks())
+	}
+}
+
 func TestPipeline_Cancelled(t *testing.T) {
 	step := &countingStep{StepName: steps.StepName("pipeline-cancelled-1")}
 
