@@ -5,6 +5,7 @@ install:
 - go get -u github.com/cenkalti/backoff
 - go get -u github.com/hashicorp/errwrap
 - go get -u github.com/hashicorp/go-multierror
+- go get -u github.com/segmentio/ksuid
 - go get -u gopkg.in/matm/v1/gocov-html
 - go get -u github.com/cee-dub/go-junit-report
 - go get -u github.com/stretchr/testify

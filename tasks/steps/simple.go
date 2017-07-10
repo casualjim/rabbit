@@ -23,6 +23,11 @@ func (s StepName) Name() string {
 	return string(s)
 }
 
+// Announce the step to the world
+func (s StepName) Announce(ctx context.Context) {
+	PublishRegisterEvent(ctx, s.Name())
+}
+
 // StatelessAtomic step only 1 invocation of the methods happens at any given time
 // the functions are guarded by a mutex
 func StatelessAtomic(name StepName, run func(context.Context) (context.Context, error), rollback func(context.Context) (context.Context, error)) Step {

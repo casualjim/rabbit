@@ -142,7 +142,7 @@ func New(log rabbit.Logger) EventBus {
 	return NewWithTimeout(log, 100*time.Millisecond)
 }
 
-// NewWithTimeout creates a new eventbus with a timeout after which an event handler gets cancelled
+// NewWithTimeout creates a new eventbus with a timeout after which an event handler gets canceled
 func NewWithTimeout(log rabbit.Logger, timeout time.Duration) EventBus {
 	if log == nil {
 		log = rabbit.NopLogger

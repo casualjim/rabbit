@@ -81,8 +81,8 @@ func TestPipeline_TransientErr(t *testing.T) {
 	}
 }
 
-func TestPipeline_Cancelled(t *testing.T) {
-	step := &countingStep{StepName: steps.StepName("pipeline-cancelled-1")}
+func TestPipeline_Canceled(t *testing.T) {
+	step := &countingStep{StepName: steps.StepName("pipeline-canceled-1")}
 
 	exec := steps.Plan(steps.Run(
 		steps.Pipeline(
@@ -104,16 +104,16 @@ func TestPipeline_Cancelled(t *testing.T) {
 	}
 
 	ctxt, cancel := context.WithCancel(context.Background())
-	runStep := &countingStep{StepName: steps.StepName("pipeline-cancelled-run-1")}
+	runStep := &countingStep{StepName: steps.StepName("pipeline-canceled-run-1")}
 	cancelStep := &countingStep{
-		StepName: steps.StepName("pipeline-cancelled-cancel-1"),
+		StepName: steps.StepName("pipeline-canceled-cancel-1"),
 		run: func(c context.Context) (context.Context, error) {
 			cancel()
 			return c, nil
 		},
 	}
 	rbFailStep := &countingStep{
-		StepName: steps.StepName("pipeline-cancelled-rollback-1"),
+		StepName: steps.StepName("pipeline-canceled-rollback-1"),
 		rollback: func(c context.Context) (context.Context, error) {
 			return c, errors.New("expected")
 		},
@@ -134,7 +134,6 @@ func TestPipeline_Cancelled(t *testing.T) {
 
 	if assert.NoError(t, err2) {
 		assert.NotNil(t, ctx4)
-		assert.Equal(t, exec2.Context(), ctx4)
 		assert.Equal(t, 1, runStep.Runs())
 		assert.Equal(t, 1, rbFailStep.Runs())
 		assert.Equal(t, 1, cancelStep.Runs())
@@ -142,4 +141,18 @@ func TestPipeline_Cancelled(t *testing.T) {
 		assert.Equal(t, 1, rbFailStep.Rollbacks())
 		assert.Equal(t, 1, cancelStep.Rollbacks())
 	}
+
+	runst := stepRun("cancel-run-2", nil)
+	cancelst := stepRun("cancel-cancel-2", canceledFn)
+	steps.Plan(
+		steps.Run(steps.Pipeline(
+			"pipeline-cancel-3",
+			runst,
+			cancelst,
+		)),
+	).Execute()
+	assert.Equal(t, 1, runst.Runs())
+	assert.Equal(t, 1, cancelst.Runs())
+	assert.Equal(t, 1, runStep.Rollbacks())
+	assert.Equal(t, 1, rbFailStep.Rollbacks())
 }

@@ -1,12 +1,21 @@
 package steps_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/casualjim/rabbit/tasks/steps"
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestIsCanceled(t *testing.T) {
+	assert.False(t, steps.IsCanceled(assert.AnError))
+	assert.True(t, steps.IsCanceled(context.Canceled))
+	assert.True(t, steps.IsCanceled(steps.StepErr(context.Canceled)))
+	assert.True(t, steps.IsCanceled(steps.PermanentErr(steps.StepErr(context.Canceled))))
+
+}
 
 func TestStepError(t *testing.T) {
 	t.Parallel()

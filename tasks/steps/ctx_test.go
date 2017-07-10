@@ -27,8 +27,11 @@ func TestContextParentName(t *testing.T) {
 	ctx = context.WithValue(context.Background(), tk("dummy"), "blah")
 	ctx2 := steps.SetParentName(ctx, "")
 	assert.Equal(t, ctx, ctx2)
-
 	assert.Empty(t, steps.GetParentName(ctx2))
+
+	ctx3 := steps.SetParentName(steps.SetParentName(ctx, "parent"), "child")
+	assert.NotEqual(t, ctx, ctx3)
+	assert.Equal(t, "parent.child", steps.GetParentName(ctx3))
 }
 
 func TestContextStepName(t *testing.T) {

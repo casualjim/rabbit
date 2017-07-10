@@ -21,8 +21,16 @@ func StepPath(ctx context.Context, localName string) string {
 
 // SetParentName on the context
 func SetParentName(ctx context.Context, name string) context.Context {
+	return OverrideParentName(ctx, GetParentName(ctx), name)
+}
+
+// OverrideParentName on the context
+func OverrideParentName(ctx context.Context, parent, name string) context.Context {
 	if name == "" {
 		return ctx
+	}
+	if parent != "" {
+		name = strings.Join([]string{parent, name}, ".")
 	}
 	return context.WithValue(ctx, internal.ParentNameKey, name)
 }

@@ -32,6 +32,7 @@ func Plan(configuration ...PlanOption) *Planned {
 	exec.ctx, exec.cancel = context.WithCancel(
 		internal.SetPublisher(exec.ctx, exec.bus),
 	)
+	exec.step.Announce(exec.ctx)
 	return exec
 }
 
@@ -42,7 +43,7 @@ func ParentContext(ctx context.Context) PlanOption {
 
 // Should allows for changing the default behavior of rolling back on every error
 // to a different usage pattern, like abort on every error
-// or only rollback when the context was cancelled or timed out
+// or only rollback when the context was canceled or timed out
 func Should(dec Decider) PlanOption {
 	return func(e *Planned) { e.decider = dec }
 }
@@ -70,11 +71,27 @@ type Planned struct {
 // Execute the step using the decider for rolling back or aborting
 func (e *Planned) Execute() (context.Context, error) {
 	e.rw.Lock()
+	PublishRunEvent(e.ctx, e.step.Name(), StateProcessing)
 	cx, err := e.step.Run(e.ctx)
 	if err != nil {
-		if e.decider(err) {
-			cx, err = e.step.Rollback(cx)
+		if IsCanceled(err) {
+			PublishRunEvent(cx, e.step.Name(), StateCanceled)
+		} else {
+			PublishRunEvent(cx, e.step.Name(), StateFailed)
 		}
+		if e.decider(err) {
+			PublishRollbackEvent(cx, e.step.Name(), StateProcessing)
+			cx, err = e.step.Rollback(cx)
+			if err != nil {
+				PublishRollbackEvent(cx, e.step.Name(), StateFailed)
+			} else {
+				PublishRollbackEvent(cx, e.step.Name(), StateSuccess)
+			}
+		} else {
+			PublishRollbackEvent(cx, e.step.Name(), StateSkipped)
+		}
+	} else {
+		PublishRunEvent(cx, e.step.Name(), StateSuccess)
 	}
 	e.rw.Unlock()
 	return cx, err

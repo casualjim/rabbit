@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/casualjim/rabbit/tasks/internal"
 	"github.com/cenkalti/backoff"
 )
 
@@ -24,9 +25,20 @@ func (r *retryStep) Name() string {
 	return r.step.Name()
 }
 
+func (r *retryStep) Announce(ctx context.Context) {
+	r.step.Announce(ctx)
+}
+
 func (r *retryStep) Run(ctx context.Context) (context.Context, error) {
 	policy := backoff.WithContext(r.policy, ctx)
-	notifier := func(e error, next time.Duration) {}
+	notifier := func(e error, next time.Duration) {
+		internal.PublishEvent(ctx, TopicRetry, RetryEvent{
+			Name:   r.Name(),
+			Parent: GetParentName(ctx),
+			Reason: e,
+			Next:   next,
+		})
+	}
 
 	fctx := ctx
 	op := func() error {

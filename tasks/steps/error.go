@@ -1,8 +1,18 @@
 package steps
 
 import (
+	"context"
+
 	"github.com/cenkalti/backoff"
+	"github.com/hashicorp/errwrap"
 )
+
+// IsCanceled returns true when this error contains or is an error 
+// that means execution was canceled
+func IsCanceled(err error) bool {
+	return errwrap.Contains(err, context.Canceled.Error()) ||
+		errwrap.Contains(err, context.DeadlineExceeded.Error())
+}
 
 // StepErr creates a new error in a step
 func StepErr(err error) *StepError {
