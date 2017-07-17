@@ -32,7 +32,9 @@ func Plan(configuration ...PlanOption) *Planned {
 	exec.ctx, exec.cancel = context.WithCancel(
 		internal.SetPublisher(exec.ctx, exec.bus),
 	)
-	exec.step.Announce(exec.ctx)
+	exec.step.Announce(exec.ctx, func(stepName string) {
+		exec.stepNames = append(exec.stepNames, stepName)
+	})
 	return exec
 }
 
@@ -60,12 +62,13 @@ func Run(step Step) PlanOption {
 
 // Planned can execute steps
 type Planned struct {
-	decider Decider
-	bus     eventbus.EventBus
-	cancel  context.CancelFunc
-	ctx     context.Context
-	rw      sync.Mutex
-	step    Step
+	decider   Decider
+	bus       eventbus.EventBus
+	cancel    context.CancelFunc
+	ctx       context.Context
+	rw        sync.Mutex
+	step      Step
+	stepNames []string
 }
 
 // Execute the step using the decider for rolling back or aborting
@@ -95,6 +98,11 @@ func (e *Planned) Execute() (context.Context, error) {
 	}
 	e.rw.Unlock()
 	return cx, err
+}
+
+// StepNames is an ordered list with all the steps known to this plan
+func (e *Planned) StepNames() []string {
+	return e.stepNames
 }
 
 // Cancel the execution of the steps

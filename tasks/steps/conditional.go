@@ -55,14 +55,23 @@ func (b *BranchingStep) Name() string {
 	return fmt.Sprintf("%s|%s", b.right.Name(), b.left.Name())
 }
 
-// Announce the branches captured by this predicate step
-func (b *BranchingStep) Announce(ctx context.Context) {
-	PublishRegisterEvent(ctx, b.Name())
-	cx := SetParentName(ctx, b.Name())
-	if b.left != nil {
-		b.left.Announce(cx)
+func (b *BranchingStep) fullName(ctx context.Context) string {
+	pn := GetParentName(ctx)
+	if pn == "" {
+		return b.Name()
 	}
-	b.right.Announce(cx)
+	return fmt.Sprintf("%s.%s", pn, b.Name())
+}
+
+// Announce the branches captured by this predicate step
+func (b *BranchingStep) Announce(ctx context.Context, callback func(string)) {
+	PublishRegisterEvent(ctx, b.Name())
+	callback(b.fullName(ctx))
+	cx := SetParentName(ctx, b.Name())
+	b.right.Announce(cx, callback)
+	if b.left != nil {
+		b.left.Announce(cx, callback)
+	}
 }
 
 // Run the step with the specified contest

@@ -32,11 +32,11 @@ type concres struct {
 }
 
 // Announce the step to the world
-func (c *concStep) Announce(ctx context.Context) {
-	c.StepName.Announce(ctx)
+func (c *concStep) Announce(ctx context.Context, callback func(string)) {
+	c.StepName.Announce(ctx, callback)
 	pt := SetParentName(ctx, c.Name())
 	for _, step := range c.steps {
-		step.Announce(pt)
+		step.Announce(pt, callback)
 	}
 }
 

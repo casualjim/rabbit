@@ -93,21 +93,50 @@ func TestExecutor_Rollback(t *testing.T) {
 	}
 }
 
+func TestAnnounce_StepNames(t *testing.T) {
+	rs := steps.Pipeline("provision",
+		stepRun("standalone", nil),
+		steps.Concurrent("workers",
+			stepRun("wfirst", nil),
+			steps.Retry(nil, stepRun("wsecond", nil)),
+			steps.If(GoRight).Then(stepRun("wright", nil)).Else(stepRun("wleft", nil)),
+			stepRun("wfourth", nil),
+		),
+	)
+
+	plan := steps.Plan(steps.Run(rs))
+
+	expected := []string{
+		"provision",
+		"provision.standalone",
+		"provision.workers",
+		"provision.workers.wfirst",
+		"provision.workers.wsecond",
+		"provision.workers.wright|wleft",
+		"provision.workers.wright|wleft.wright",
+		"provision.workers.wright|wleft.wleft",
+		"provision.workers.wfourth",
+	}
+	assert.Equal(t, expected, plan.StepNames())
+}
+
 func TestAnnounce_Success(t *testing.T) {
 	bus := testBus()
 
 	rs := stepRun("the-step", nil)
 
-	steps.Plan(
+	plan := steps.Plan(
 		steps.PublishTo(bus),
 		steps.Run(rs),
-	).Execute()
+	)
+	plan.Execute()
 
 	bus.Assert(t, eventCounts{
 		Registered: 1,
 		RunRunning: 1,
 		RunSuccess: 1,
 	})
+	assert.Equal(t, []string{"the-step"}, plan.StepNames())
 }
 
 func TestAnnounce_Canceled(t *testing.T) {
@@ -237,8 +266,8 @@ func (a *aggregatingBus) Assert(t testing.TB, c eventCounts) bool {
 	rbFail := assert.Equal(t, c.RbFailed, a.Count(steps.LifecycleEventFilter(steps.ActionRollback, steps.StateFailed)), "rollback failed count")
 	rbOK := assert.Equal(t, c.RbSuccess, a.Count(steps.LifecycleEventFilter(steps.ActionRollback, steps.StateSuccess)), "rollback success count")
 	rbSkip := assert.Equal(t, c.RbSkipped, a.Count(steps.LifecycleEventFilter(steps.ActionRollback, steps.StateSkipped)), "rollback skipped count")
-
-	return init && runSk && runRun && runOK && runFail && runCanc && rbRun && rbFail && rbSkip && rbOK
+	runRetry := assert.Equal(t, c.RunRetry, a.Count(steps.RetryEventFilter), "retry count")
+	return init && runSk && runRun && runOK && runFail && runCanc && rbRun && rbFail && rbSkip && rbOK && runRetry
 }
 
 type eventCounts struct {
@@ -246,6 +275,7 @@ type eventCounts struct {
 	RunSkipped  int
 	RunRunning  int
 	RunSuccess  int
+	RunRetry    int
 	RunFailed   int
 	RunCanceled int
 	RbRunning   int

@@ -25,8 +25,8 @@ func (r *retryStep) Name() string {
 	return r.step.Name()
 }
 
-func (r *retryStep) Announce(ctx context.Context) {
-	r.step.Announce(ctx)
+func (r *retryStep) Announce(ctx context.Context, callback func(string)) {
+	r.step.Announce(ctx, callback)
 }
 
 func (r *retryStep) Run(ctx context.Context) (context.Context, error) {

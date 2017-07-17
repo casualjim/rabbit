@@ -11,7 +11,7 @@ type Predicate func(context.Context) bool
 // A Step encapsulates a unit of work.
 type Step interface {
 	Name() string
-	Announce(context.Context)
+	Announce(context.Context, func(string))
 	Run(context.Context) (context.Context, error)
 	Rollback(context.Context) (context.Context, error)
 }

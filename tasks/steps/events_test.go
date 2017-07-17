@@ -1,12 +1,14 @@
 package steps_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/casualjim/rabbit/eventbus"
+	"github.com/casualjim/rabbit/tasks/internal"
 	"github.com/casualjim/rabbit/tasks/steps"
 	"github.com/stretchr/testify/assert"
 )
@@ -85,4 +87,41 @@ func TestIsLifecycle(t *testing.T) {
 		Args: bogus,
 	}
 	assert.False(t, steps.IsLifecycleEvent(evt, steps.ActionRun, steps.StateSkipped))
+}
+
+func TestRetryEventFilter(t *testing.T) {
+	matches := eventbus.Event{
+		Name: steps.TopicRetry,
+		At:   time.Now(),
+		Args: steps.RetryEvent{
+			Name:   "someStep",
+			Next:   10 * time.Second,
+			Parent: "some parent",
+			Reason: assert.AnError,
+		},
+	}
+
+	assert.True(t, steps.RetryEventFilter(matches))
+	assert.False(t, steps.RetryEventFilter(eventbus.Event{
+		Name: "bogus",
+		At:   time.Now(),
+		Args: struct{}{},
+	}))
+	assert.False(t, steps.RetryEventFilter(eventbus.Event{
+		Name: steps.TopicRetry,
+		At:   time.Now(),
+		Args: struct{}{},
+	}))
+}
+
+func TestPublishApplicationEvent(t *testing.T) {
+	bus := testBus()
+	ctx := internal.SetPublisher(context.Background(), bus)
+
+	type blah int
+	var i blah = 1
+	steps.PublishEvent(ctx, i)
+	cnt := bus.Count(steps.IsApplicationEvent)
+
+	assert.Equal(t, 1, cnt)
 }

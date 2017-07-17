@@ -136,6 +136,9 @@ const (
 	TopicLifecycle = "lifecycle"
 	// TopicRetry is the event topic for retries
 	TopicRetry = "retry"
+
+	// TopicApplication is the event topic for application specific events
+	TopicApplication = "application"
 )
 
 // RetryEvent is emitted when a retry is executed
@@ -192,11 +195,29 @@ func IsLifecycleEvent(evt eventbus.Event, action Action, state State) bool {
 // LifecycleEventFilter is an event filter that matches specific lifecycle events
 func LifecycleEventFilter(action Action, state State) eventbus.EventPredicate {
 	return func(evt eventbus.Event) bool {
-		if evt.Name == TopicLifecycle {
-			if lce, ok := evt.Args.(LifecycleEvent); ok {
-				return lce.State == state && lce.Action == action
-			}
+		if evt.Name != TopicLifecycle {
+			return false
 		}
+		lce, ok := evt.Args.(LifecycleEvent)
+		return ok && lce.State == state && lce.Action == action
+	}
+}
+
+// RetryEventFilter an event handler filter that only selects retry events
+func RetryEventFilter(evt eventbus.Event) bool {
+	if evt.Name != TopicRetry {
 		return false
 	}
+	_, ok := evt.Args.(RetryEvent)
+	return ok
+}
+
+// PublishEvent publishes application specific events
+func PublishEvent(ctx context.Context, args interface{}) {
+	internal.PublishEvent(ctx, TopicApplication, args)
+}
+
+// IsApplicationEvent returns true when the event is an application event
+func IsApplicationEvent(evt eventbus.Event) bool {
+	return evt.Name == TopicApplication
 }

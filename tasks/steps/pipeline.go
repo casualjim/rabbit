@@ -19,11 +19,11 @@ type pipelineStep struct {
 	m     sync.Mutex
 }
 
-func (s *pipelineStep) Announce(ctx context.Context) {
-	PublishRegisterEvent(ctx, s.Name())
+func (s *pipelineStep) Announce(ctx context.Context, callback func(string)) {
+	s.StepName.Announce(ctx, callback)
 	pt := SetParentName(ctx, s.Name())
 	for _, step := range s.steps {
-		step.Announce(pt)
+		step.Announce(pt, callback)
 	}
 }
 

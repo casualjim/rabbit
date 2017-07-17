@@ -86,3 +86,36 @@ func TestRetryMax_Cancel(t *testing.T) {
 		assert.Equal(t, 0, breakingStep.Rollbacks())
 	}
 }
+
+func TestRetryMax_Events(t *testing.T) {
+	bus := testBus()
+
+	var cnt int
+	var expected context.Context
+	successStep := stepRun("retry-max-success", func(c context.Context) (context.Context, error) {
+		if cnt > 0 {
+			expected = context.WithValue(c, tk("retrykey"), "blah")
+			return expected, nil
+		}
+		cnt++
+		return c, assert.AnError
+	})
+
+	retry := steps.Retry(backoff.WithMaxTries(backoff.NewConstantBackOff(20*time.Millisecond), 3), successStep)
+	assert.Equal(t, successStep.Name(), retry.Name())
+	ctx, err := steps.Plan(
+		steps.PublishTo(bus),
+		steps.Run(retry),
+	).Execute()
+	if assert.NoError(t, err) {
+		assert.Equal(t, expected, ctx)
+		assert.Equal(t, 2, successStep.Runs())
+		assert.Equal(t, 0, successStep.Rollbacks())
+		bus.Assert(t, eventCounts{
+			Registered: 1,
+			RunRunning: 1,
+			RunSuccess: 1,
+			RunRetry:   1,
+		})
+	}
+}

@@ -2,6 +2,7 @@ package steps
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -23,9 +24,18 @@ func (s StepName) Name() string {
 	return string(s)
 }
 
+func (s StepName) fullName(ctx context.Context) string {
+	pn := GetParentName(ctx)
+	if pn == "" {
+		return s.Name()
+	}
+	return fmt.Sprintf("%s.%s", pn, s.Name())
+}
+
 // Announce the step to the world
-func (s StepName) Announce(ctx context.Context) {
+func (s StepName) Announce(ctx context.Context, callback func(string)) {
 	PublishRegisterEvent(ctx, s.Name())
+	callback(s.fullName(ctx))
 }
 
 // StatelessAtomic step only 1 invocation of the methods happens at any given time
