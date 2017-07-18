@@ -143,6 +143,14 @@ func (t *Task) GetID() string {
 	return string(t.ID)
 }
 
+func (t *Task) SetCtxValue(key, value interface{}) {
+	t.ctx = context.WithValue(t.ctx, key, value)
+}
+
+func (t *Task) GetCtxValue(value interface{}) interface{} {
+	return t.ctx.Value(value)
+}
+
 func (t *Task) Success() {
 	if t.successFn == nil {
 		t.eventBus.Close()
