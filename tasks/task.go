@@ -2,8 +2,11 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/casualjim/rabbit"
 	"github.com/casualjim/rabbit/eventbus"
@@ -17,8 +20,17 @@ import (
 // Steps assume they are being run by a task.
 type Task interface {
 	ID() string
+	// Name() string
+	// CreatedAt() time.Time
+	// FinishedAt() time.Time
+	// State() (steps.Action, steps.State)
+	// FirstInfo(key string) (StepInfo, bool)
+	// Infos(key string) (StepInfo, bool)
+
 	Run() error
-	Cancel()
+	// Cancel allows cancelling the request with a new decider
+	// which in turn allows for getting abort or rollback behavior
+	Cancel(steps.Decider)
 	Subscribe(...eventbus.EventHandler) Task
 	Unsubscribe(...eventbus.EventHandler) Task
 }
@@ -54,13 +66,11 @@ func LogWith(log rabbit.Logger) TaskOpt {
 func Create(opts ...TaskOpt) Task {
 	id := ksuid.New()
 	tsk := &task{
-		id:             id,
-		ctx:            context.Background(),
-		bus:            eventbus.New(rabbit.GoLog(os.Stderr, "["+id.String()+"] ", 0)),
-		runStates:      &stateStore{states: make(map[string]steps.State)},
-		rollbackStates: &stateStore{states: make(map[string]steps.State)},
-		decider:        rollback.Always,
-		log:            rabbit.NopLogger,
+		id:      id,
+		ctx:     context.Background(),
+		bus:     eventbus.New(rabbit.GoLog(os.Stderr, "["+id.String()+"] ", 0)),
+		decider: rollback.Always,
+		log:     rabbit.NopLogger,
 	}
 
 	for _, opt := range opts {
@@ -77,24 +87,36 @@ func Create(opts ...TaskOpt) Task {
 		steps.Should(tsk.decider),
 		steps.Run(tsk.step),
 	)
+	tsk.states = newStateStore(tsk.plan.StepNames())
 
 	return tsk
 }
 
 type task struct {
-	id      ksuid.KSUID
-	bus     eventbus.EventBus
-	ctx     context.Context
-	step    steps.Step
-	decider steps.Decider
-	plan    *steps.Planned
-	log     rabbit.Logger
-
-	runStates      *stateStore
-	rollbackStates *stateStore
+	id         ksuid.KSUID
+	name       string
+	createdAt  time.Time
+	finishedat time.Time
+	bus        eventbus.EventBus
+	ctx        context.Context
+	step       steps.Step
+	decider    steps.Decider
+	plan       *steps.Planned
+	log        rabbit.Logger
+	states     *stateStore
 }
 
 func (t *task) trackStepStates(evt eventbus.Event) error {
+	switch evt.Name {
+	case steps.TopicLifecycle:
+		if et, ok := evt.Args.(steps.LifecycleEvent); ok && et.Action != steps.ActionInit {
+			t.states.AddLifecycleEvent(et)
+		}
+	case steps.TopicRetry:
+		if et, ok := evt.Args.(steps.RetryEvent); ok {
+			t.states.AddRetryEvent(et)
+		}
+	}
 	return nil
 }
 
@@ -109,13 +131,13 @@ func (t *task) Run() error {
 		return err
 	}
 	if err := t.bus.Close(); err != nil {
-
+		t.log.Warnf("failed to close eventbus: %v", err)
 	}
 	return nil
 }
 
-func (t *task) Cancel() {
-	t.plan.Cancel()
+func (t *task) Cancel(decider steps.Decider) {
+	t.plan.Cancel(decider)
 }
 
 func (t *task) Subscribe(handlers ...eventbus.EventHandler) Task {
@@ -129,32 +151,103 @@ func (t *task) Unsubscribe(handlers ...eventbus.EventHandler) Task {
 }
 
 type stateStore struct {
-	m      sync.RWMutex
-	states map[string]steps.State
+	m         sync.RWMutex
+	states    map[string]StepInfo
+	stepNames []string
 }
 
-func (s *stateStore) Get(key string) steps.State {
-	s.m.RLock()
-	v := s.states[key]
-	s.m.RUnlock()
-	return v
+func newStateStore(stepNames []string) *stateStore {
+	store := &stateStore{
+		states:    make(map[string]StepInfo, 150),
+		stepNames: stepNames,
+	}
+
+	store.AppendStepNames(stepNames)
+	return store
 }
 
-func (s *stateStore) GetOK(key string) (steps.State, bool) {
-	s.m.RLock()
-	v, ok := s.states[key]
-	s.m.RUnlock()
-	return v, ok
-}
-
-func (s *stateStore) Delete(key string) {
+func (s *stateStore) AppendStepNames(stepNames []string) {
 	s.m.Lock()
-	delete(s.states, key)
+	for _, stepName := range stepNames {
+		if _, ok := s.states[stepName]; !ok {
+			parent, name := s.splitPath(stepName)
+			s.states[stepName] = StepInfo{
+				Name:   name,
+				Parent: parent,
+				Path:   stepName,
+				Phase:  steps.ActionInit,
+				State:  steps.StateWaiting,
+			}
+			s.stepNames = append(s.stepNames, stepName)
+		}
+	}
 	s.m.Unlock()
 }
 
-func (s *stateStore) Set(key string, state steps.State) {
+func (s *stateStore) AddLifecycleEvent(evt steps.LifecycleEvent) {
 	s.m.Lock()
-	s.states[key] = state
+	path := s.fullName(evt.Parent, evt.Name)
+	if info, ok := s.states[path]; ok {
+		info.Phase = evt.Action
+		info.State = evt.State
+		if evt.State == steps.StateFailed {
+			info.Reason = evt.Reason
+		}
+		s.states[path] = info
+	}
 	s.m.Unlock()
+}
+
+func (s *stateStore) AddRetryEvent(evt steps.RetryEvent) {
+	s.m.Lock()
+	path := s.fullName(evt.Parent, evt.Name)
+	if info, ok := s.states[path]; ok {
+		info.Retry = append(info.Retry, evt.Reason)
+		info.NextRetry = evt.Next
+		s.states[path] = info
+	}
+	s.m.Unlock()
+}
+
+func (s *stateStore) fullName(parent, name string) string {
+	if parent == "" {
+		return name
+	}
+	return fmt.Sprintf("%s.%s", parent, name)
+}
+
+func (s *stateStore) splitPath(path string) (parent string, name string) {
+	parts := strings.Split(path, ".")
+	return strings.Join(parts[:len(parts)-1], "."), parts[len(parts)-1]
+}
+
+func (s *stateStore) FirstInfo(key string) (StepInfo, bool) {
+	s.m.RLock()
+	info, ok := s.states[key]
+	s.m.RUnlock()
+	return info, ok
+}
+
+func (s *stateStore) Infos(key string) []StepInfo {
+	s.m.RLock()
+	var result []StepInfo
+	for _, sn := range s.stepNames {
+		if strings.HasPrefix(sn, key) {
+			result = append(result, s.states[sn])
+		}
+	}
+	s.m.RUnlock()
+	return result
+}
+
+// StepInfo contains the information about a step
+type StepInfo struct {
+	Name      string
+	Phase     steps.Action
+	State     steps.State
+	Path      string
+	Parent    string
+	Reason    error
+	Retry     []error
+	NextRetry time.Duration
 }

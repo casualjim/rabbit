@@ -32,6 +32,10 @@ func Plan(configuration ...PlanOption) *Planned {
 	exec.ctx, exec.cancel = context.WithCancel(
 		internal.SetPublisher(exec.ctx, exec.bus),
 	)
+	// we provide a callback because we can't guarantee the events will arrive
+	// in order in the handlers because they are executed in their own go routine
+	// so we collect the step names through a callback which will guarantee
+	// breadth first traversal of the tree.
 	exec.step.Announce(exec.ctx, func(stepName string) {
 		exec.stepNames = append(exec.stepNames, stepName)
 	})
@@ -67,6 +71,7 @@ type Planned struct {
 	cancel    context.CancelFunc
 	ctx       context.Context
 	rw        sync.Mutex
+	decl      sync.Mutex
 	step      Step
 	stepNames []string
 }
@@ -74,27 +79,30 @@ type Planned struct {
 // Execute the step using the decider for rolling back or aborting
 func (e *Planned) Execute() (context.Context, error) {
 	e.rw.Lock()
-	PublishRunEvent(e.ctx, e.step.Name(), StateProcessing)
+	PublishRunEvent(e.ctx, e.step.Name(), StateProcessing, nil)
 	cx, err := e.step.Run(e.ctx)
 	if err != nil {
 		if IsCanceled(err) {
-			PublishRunEvent(cx, e.step.Name(), StateCanceled)
+			PublishRunEvent(cx, e.step.Name(), StateCanceled, nil)
 		} else {
-			PublishRunEvent(cx, e.step.Name(), StateFailed)
+			PublishRunEvent(cx, e.step.Name(), StateFailed, err)
 		}
-		if e.decider(err) {
-			PublishRollbackEvent(cx, e.step.Name(), StateProcessing)
+		e.decl.Lock()
+		decider := e.decider
+		e.decl.Unlock()
+		if decider(err) {
+			PublishRollbackEvent(cx, e.step.Name(), StateProcessing, nil)
 			cx, err = e.step.Rollback(cx)
 			if err != nil {
-				PublishRollbackEvent(cx, e.step.Name(), StateFailed)
+				PublishRollbackEvent(cx, e.step.Name(), StateFailed, err)
 			} else {
-				PublishRollbackEvent(cx, e.step.Name(), StateSuccess)
+				PublishRollbackEvent(cx, e.step.Name(), StateSuccess, nil)
 			}
 		} else {
-			PublishRollbackEvent(cx, e.step.Name(), StateSkipped)
+			PublishRollbackEvent(cx, e.step.Name(), StateSkipped, nil)
 		}
 	} else {
-		PublishRunEvent(cx, e.step.Name(), StateSuccess)
+		PublishRunEvent(cx, e.step.Name(), StateSuccess, nil)
 	}
 	e.rw.Unlock()
 	return cx, err
@@ -106,10 +114,13 @@ func (e *Planned) StepNames() []string {
 }
 
 // Cancel the execution of the steps
-func (e *Planned) Cancel() {
+func (e *Planned) Cancel(decider Decider) {
 	if e.cancel == nil {
 		return
 	}
+	e.decl.Lock()
+	e.decider = decider
+	e.decl.Unlock()
 	e.cancel()
 }
 

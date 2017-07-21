@@ -156,3 +156,7 @@ func TestPipeline_Canceled(t *testing.T) {
 	assert.Equal(t, 1, runStep.Rollbacks())
 	assert.Equal(t, 1, rbFailStep.Rollbacks())
 }
+
+func TestPipeline_Events(t *testing.T) {
+
+}

@@ -155,6 +155,7 @@ type LifecycleEvent struct {
 	State  State
 	Name   string
 	Parent string
+	Reason error
 }
 
 // PublishRegisterEvent during initialization to make the step known
@@ -168,22 +169,24 @@ func PublishRegisterEvent(ctx context.Context, stepName string) {
 }
 
 // PublishRunEvent for state transitions during the run phase of a step
-func PublishRunEvent(ctx context.Context, stepName string, state State) {
+func PublishRunEvent(ctx context.Context, stepName string, state State, reason error) {
 	internal.PublishEvent(ctx, TopicLifecycle, LifecycleEvent{
 		Action: ActionRun,
 		State:  state,
 		Name:   stepName,
 		Parent: GetParentName(ctx),
+		Reason: reason,
 	})
 }
 
 // PublishRollbackEvent for state transitions during the run phase of a step
-func PublishRollbackEvent(ctx context.Context, stepName string, state State) {
+func PublishRollbackEvent(ctx context.Context, stepName string, state State, reason error) {
 	internal.PublishEvent(ctx, TopicLifecycle, LifecycleEvent{
 		Action: ActionRollback,
 		State:  state,
 		Name:   stepName,
 		Parent: GetParentName(ctx),
+		Reason: reason,
 	})
 }
 
