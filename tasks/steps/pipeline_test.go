@@ -144,13 +144,14 @@ func TestPipeline_Canceled(t *testing.T) {
 
 	runst := stepRun("cancel-run-2", nil)
 	cancelst := stepRun("cancel-cancel-2", canceledFn)
-	steps.Plan(
+	_, err3 := steps.Plan(
 		steps.Run(steps.Pipeline(
 			"pipeline-cancel-3",
 			runst,
 			cancelst,
 		)),
 	).Execute()
+	assert.NoError(t, err3)
 	assert.Equal(t, 1, runst.Runs())
 	assert.Equal(t, 1, cancelst.Runs())
 	assert.Equal(t, 1, runStep.Rollbacks())

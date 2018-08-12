@@ -18,11 +18,11 @@ func TestStepName(t *testing.T) {
 
 func TestZeroStep(t *testing.T) {
 	st := steps.Zero
-	ctx, err := st.Run(nil)
+	ctx, err := st.Run(context.TODO())
 	assert.NoError(t, err)
 	assert.Nil(t, ctx)
 
-	ctx, err = st.Rollback(nil)
+	ctx, err = st.Rollback(context.TODO())
 	assert.NoError(t, err)
 	assert.Nil(t, ctx)
 }

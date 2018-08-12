@@ -9,11 +9,6 @@ import (
 	"github.com/casualjim/rabbit/tasks/rollback"
 )
 
-type result struct {
-	ctx context.Context
-	err error
-}
-
 // PlanOption represents a configuration option for the step execution context
 type PlanOption func(*Planned)
 

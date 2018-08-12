@@ -36,7 +36,7 @@ func TestStepStates(t *testing.T) {
 		b, _ := json.Marshal(v.Key)
 		assert.Equal(t, fmt.Sprintf("%q", v.Name), string(b))
 		var k steps.State
-		json.Unmarshal(b, &k)
+		assert.NoError(t, json.Unmarshal(b, &k))
 		assert.Equal(t, v.Key, k)
 	}
 
@@ -67,7 +67,7 @@ func TestStepActions(t *testing.T) {
 		b, _ := json.Marshal(v.Key)
 		assert.Equal(t, fmt.Sprintf("%q", v.Name), string(b))
 		var k steps.Action
-		json.Unmarshal(b, &k)
+		assert.NoError(t, json.Unmarshal(b, &k))
 		assert.Equal(t, v.Key, k)
 	}
 

@@ -147,7 +147,8 @@ func TestAnnounce_Success(t *testing.T) {
 		steps.PublishTo(bus),
 		steps.Run(rs),
 	)
-	plan.Execute()
+	_, err := plan.Execute()
+	assert.NoError(t, err)
 
 	bus.Assert(t, eventCounts{
 		Registered: 1,
@@ -162,10 +163,11 @@ func TestAnnounce_Canceled(t *testing.T) {
 
 	rs := stepRun("the-step", canceledFn)
 
-	steps.Plan(
+	_, err := steps.Plan(
 		steps.PublishTo(bus),
 		steps.Run(rs),
 	).Execute()
+	assert.NoError(t, err)
 
 	bus.Assert(t, eventCounts{
 		Registered:  1,
@@ -181,10 +183,11 @@ func TestAnnounce_Failed(t *testing.T) {
 
 	rs := failRun("the-step")
 
-	steps.Plan(
+	_, err := steps.Plan(
 		steps.PublishTo(bus),
 		steps.Run(rs),
 	).Execute()
+	assert.NoError(t, err)
 
 	bus.Assert(t, eventCounts{
 		Registered: 1,
@@ -199,11 +202,12 @@ func TestAnnounce_RollbackSkipped(t *testing.T) {
 
 	rs := failRun("the-step")
 
-	steps.Plan(
+	_, err := steps.Plan(
 		steps.PublishTo(bus),
 		steps.Should(rollback.Never),
 		steps.Run(rs),
 	).Execute()
+	assert.NoError(t, err)
 
 	bus.Assert(t, eventCounts{
 		Registered: 1,
@@ -218,10 +222,11 @@ func TestAnnounce_RollbackFailed(t *testing.T) {
 	rs := failRun("the-step")
 	rs.rollback = failFn
 
-	steps.Plan(
+	_, err := steps.Plan(
 		steps.PublishTo(bus),
 		steps.Run(rs),
 	).Execute()
+	assert.NoError(t, err)
 
 	bus.Assert(t, eventCounts{
 		Registered: 1,
