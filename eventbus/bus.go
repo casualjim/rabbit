@@ -27,6 +27,14 @@ func Handler(on func(Event) error) EventHandler {
 	}
 }
 
+// Forward is an event handler that forwards events to another event bus
+func Forward(bus EventBus) EventHandler {
+	return Handler(func(evt Event) error {
+		bus.Publish(evt)
+		return nil
+	})
+}
+
 type defaultHandler struct {
 	on func(Event) error
 }

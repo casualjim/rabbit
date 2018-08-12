@@ -43,23 +43,23 @@ func (s *pipelineStep) Run(ct context.Context) (context.Context, error) {
 	for i, step := range s.steps {
 		s.idx = i // record we started, step at index
 		var ie error
-		PublishRunEvent(ctx, step.Name(), StateProcessing)
+		PublishRunEvent(ctx, step.Name(), StateProcessing, nil)
 		ctx, ie = step.Run(ctx)
 		ctx = OverrideParentName(ctx, GetParentName(ct), s.Name())
 		if ie != nil {
 			if _, ok := ie.(*TransientError); ok {
-				PublishRunEvent(ctx, step.Name(), StateFailed)
+				PublishRunEvent(ctx, step.Name(), StateFailed, ie)
 				continue
 			}
 			if IsCanceled(ie) {
-				PublishRunEvent(ctx, step.Name(), StateCanceled)
+				PublishRunEvent(ctx, step.Name(), StateCanceled, nil)
 			} else {
-				PublishRunEvent(ctx, step.Name(), StateFailed)
+				PublishRunEvent(ctx, step.Name(), StateFailed, ie)
 			}
 			err = multierror.Append(err, ie)
 			break
 		} else {
-			PublishRunEvent(ctx, step.Name(), StateSuccess)
+			PublishRunEvent(ctx, step.Name(), StateSuccess, nil)
 		}
 		select {
 		case <-ctx.Done():
@@ -76,7 +76,7 @@ func (s *pipelineStep) Rollback(ct context.Context) (context.Context, error) {
 	defer s.m.Unlock()
 
 	if s.idx < 0 {
-		PublishRollbackEvent(ct, s.Name(), StateSkipped)
+		PublishRollbackEvent(ct, s.Name(), StateSkipped, nil)
 		return ct, nil
 	}
 
@@ -84,17 +84,17 @@ func (s *pipelineStep) Rollback(ct context.Context) (context.Context, error) {
 	var err error
 	for i := s.idx + 1; i < len(s.steps); i++ { // maybe this should also be reverse order
 		step := s.steps[i]
-		PublishRollbackEvent(ctx, step.Name(), StateSkipped)
+		PublishRollbackEvent(ctx, step.Name(), StateSkipped, nil)
 	}
 	for i := s.idx; i >= 0; i-- {
 		step := s.steps[i]
-		PublishRollbackEvent(ctx, step.Name(), StateProcessing)
+		PublishRollbackEvent(ctx, step.Name(), StateProcessing, nil)
 		ctx, err = step.Rollback(ctx)
 		if err != nil {
-			PublishRollbackEvent(ctx, step.Name(), StateFailed)
+			PublishRollbackEvent(ctx, step.Name(), StateFailed, err)
 			continue
 		}
-		PublishRollbackEvent(ctx, step.Name(), StateSuccess)
+		PublishRollbackEvent(ctx, step.Name(), StateSuccess, nil)
 	}
 	return ctx, nil
 }

@@ -6,6 +6,13 @@ import (
 	"sync"
 )
 
+// Not inverts the result of a predicate
+func Not(pred Predicate) Predicate {
+	return func(ctx context.Context) bool {
+		return !pred(ctx)
+	}
+}
+
 // If condition for choosing
 func If(pred Predicate) PredicateStep {
 	return &BranchingStep{
@@ -81,11 +88,11 @@ func (b *BranchingStep) Run(ctx context.Context) (context.Context, error) {
 	if b.matches(ctx) {
 		b.selected = b.right
 		if b.left != nil {
-			PublishRunEvent(nctx, b.left.Name(), StateSkipped)
+			PublishRunEvent(nctx, b.left.Name(), StateSkipped, nil)
 		}
 	} else {
 		b.selected = b.left
-		PublishRunEvent(nctx, b.right.Name(), StateSkipped)
+		PublishRunEvent(nctx, b.right.Name(), StateSkipped, nil)
 	}
 	b.m.Unlock()
 
@@ -93,17 +100,17 @@ func (b *BranchingStep) Run(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	PublishRunEvent(ctx, b.selected.Name(), StateProcessing)
+	PublishRunEvent(ctx, b.selected.Name(), StateProcessing, nil)
 	cx, err := b.selected.Run(nctx)
 	if err != nil {
 		if IsCanceled(err) {
-			PublishRunEvent(nctx, b.selected.Name(), StateCanceled)
+			PublishRunEvent(nctx, b.selected.Name(), StateCanceled, nil)
 		} else {
-			PublishRunEvent(nctx, b.selected.Name(), StateFailed)
+			PublishRunEvent(nctx, b.selected.Name(), StateFailed, err)
 		}
 		return cx, err
 	}
-	PublishRunEvent(nctx, b.selected.Name(), StateSuccess)
+	PublishRunEvent(nctx, b.selected.Name(), StateSuccess, nil)
 	return cx, nil
 }
 
@@ -113,12 +120,12 @@ func (b *BranchingStep) Rollback(ctx context.Context) (context.Context, error) {
 	c := SetParentName(ctx, b.Name())
 	var e error
 	if b.selected != nil {
-		PublishRollbackEvent(c, b.selected.Name(), StateProcessing)
+		PublishRollbackEvent(c, b.selected.Name(), StateProcessing, nil)
 		c, e = b.selected.Rollback(c)
 		if e != nil {
-			PublishRollbackEvent(c, b.selected.Name(), StateFailed)
+			PublishRollbackEvent(c, b.selected.Name(), StateFailed, e)
 		} else {
-			PublishRollbackEvent(c, b.selected.Name(), StateSuccess)
+			PublishRollbackEvent(c, b.selected.Name(), StateSuccess, nil)
 		}
 	}
 	b.m.Unlock()

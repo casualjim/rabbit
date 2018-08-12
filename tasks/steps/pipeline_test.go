@@ -94,7 +94,7 @@ func TestPipeline_Canceled(t *testing.T) {
 		)),
 	)
 	ctx := exec.Context()
-	exec.Cancel()
+	exec.Cancel(nil)
 	ctx2, err := exec.Execute()
 
 	if assert.NoError(t, err) {

@@ -67,16 +67,16 @@ Outer:
 					break
 				}
 			}
-			PublishRunEvent(ctx, step.Name(), StateProcessing)
+			PublishRunEvent(ctx, step.Name(), StateProcessing, nil)
 			cx, err := step.Run(ctx)
 			if err != nil {
 				if IsCanceled(err) {
-					PublishRunEvent(ctx, step.Name(), StateCanceled)
+					PublishRunEvent(ctx, step.Name(), StateCanceled, nil)
 				} else {
-					PublishRunEvent(ctx, step.Name(), StateFailed)
+					PublishRunEvent(ctx, step.Name(), StateFailed, err)
 				}
 			} else {
-				PublishRunEvent(ctx, step.Name(), StateSuccess)
+				PublishRunEvent(ctx, step.Name(), StateSuccess, nil)
 			}
 			merge <- concres{cx, err, i}
 			wg.Done()
@@ -107,16 +107,16 @@ func (c *concStep) Rollback(ctx context.Context) (context.Context, error) {
 
 	for i, step := range c.steps {
 		if set&(1<<uint64(i)) == 0 {
-			PublishRollbackEvent(pt, step.Name(), StateSkipped)
+			PublishRollbackEvent(pt, step.Name(), StateSkipped, nil)
 			continue
 		}
-		PublishRollbackEvent(pt, step.Name(), StateProcessing)
+		PublishRollbackEvent(pt, step.Name(), StateProcessing, nil)
 		_, err := step.Rollback(ctx)
 		if err != nil {
-			PublishRollbackEvent(pt, step.Name(), StateFailed)
+			PublishRollbackEvent(pt, step.Name(), StateFailed, err)
 			continue
 		} else {
-			PublishRollbackEvent(pt, step.Name(), StateSuccess)
+			PublishRollbackEvent(pt, step.Name(), StateSuccess, nil)
 		}
 	}
 	return ctx, nil

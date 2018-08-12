@@ -16,6 +16,8 @@ func TestBranching(t *testing.T) {
 
 	assert.Panics(t, func() { steps.If(GoRight).Then(nil).Name() })
 
+	assert.False(t, steps.Not(GoRight)(context.Background()))
+
 	right := &countingStep{StepName: steps.StepName("true")}
 	left := &countingStep{StepName: steps.StepName("false")}
 

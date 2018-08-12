@@ -118,9 +118,11 @@ func (e *Planned) Cancel(decider Decider) {
 	if e.cancel == nil {
 		return
 	}
-	e.decl.Lock()
-	e.decider = decider
-	e.decl.Unlock()
+	if decider != nil {
+		e.decl.Lock()
+		e.decider = decider
+		e.decl.Unlock()
+	}
 	e.cancel()
 }
 
